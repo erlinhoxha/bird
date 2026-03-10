@@ -1,7 +1,9 @@
-// @ts-nocheck
 import { TWITTER_API_BASE } from './twitter-client-constants.js';
 import { buildBookmarksFeatures, buildLikesFeatures } from './twitter-client-features.js';
-import { extractCursorFromInstructions, parseTweetsFromInstructions } from './twitter-client-utils.js';
+import { extractCursorFromInstructions, parseTweetsFromInstructions, } from './twitter-client-utils.js';
+function timelineError(result, fallback) {
+    return 'error' in result ? result.error : fallback;
+}
 export function withTimelines(Base) {
     class TwitterClientTimelines extends Base {
         // biome-ignore lint/complexity/noUselessConstructor lint/suspicious/noExplicitAny: TS mixin constructor requirement.
@@ -37,7 +39,7 @@ export function withTimelines(Base) {
         async getBookmarks(count = 20, options = {}) {
             return this.getBookmarksPaged(count, options);
         }
-        async getAllBookmarks(options) {
+        async getAllBookmarks(options = {}) {
             return this.getBookmarksPaged(Number.POSITIVE_INFINITY, options);
         }
         /**
@@ -46,7 +48,7 @@ export function withTimelines(Base) {
         async getLikes(count = 20, options = {}) {
             return this.getLikesPaged(count, options);
         }
-        async getAllLikes(options) {
+        async getAllLikes(options = {}) {
             return this.getLikesPaged(Number.POSITIVE_INFINITY, options);
         }
         async getLikesPaged(limit, options = {}) {
@@ -124,23 +126,23 @@ export function withTimelines(Base) {
                     return firstAttempt;
                 }
                 const shouldRefresh = firstAttempt.had404 ||
-                    (typeof firstAttempt.error === 'string' && firstAttempt.error.includes('Query: Unspecified'));
+                    timelineError(firstAttempt, '').includes('Query: Unspecified');
                 if (shouldRefresh) {
                     await this.refreshQueryIds();
                     const secondAttempt = await fetchPage(pageCount, pageCursor);
                     if (secondAttempt.success) {
                         return secondAttempt;
                     }
-                    return { success: false, error: secondAttempt.error };
+                    return { success: false, error: timelineError(secondAttempt, 'Unknown error fetching likes') };
                 }
-                return { success: false, error: firstAttempt.error };
+                return { success: false, error: timelineError(firstAttempt, 'Unknown error fetching likes') };
             };
             const unlimited = limit === Number.POSITIVE_INFINITY;
             while (unlimited || tweets.length < limit) {
                 const pageCount = unlimited ? pageSize : Math.min(pageSize, limit - tweets.length);
                 const page = await fetchWithRefresh(pageCount, cursor);
                 if (!page.success) {
-                    return { success: false, error: page.error };
+                    return { success: false, error: timelineError(page, 'Unknown error fetching likes') };
                 }
                 pagesFetched += 1;
                 let added = 0;
@@ -175,7 +177,7 @@ export function withTimelines(Base) {
         async getBookmarkFolderTimeline(folderId, count = 20, options = {}) {
             return this.getBookmarkFolderTimelinePaged(folderId, count, options);
         }
-        async getAllBookmarkFolderTimeline(folderId, options) {
+        async getAllBookmarkFolderTimeline(folderId, options = {}) {
             return this.getBookmarkFolderTimelinePaged(folderId, Number.POSITIVE_INFINITY, options);
         }
         async getBookmarksPaged(limit, options = {}) {
@@ -266,16 +268,16 @@ export function withTimelines(Base) {
                     if (secondAttempt.success) {
                         return secondAttempt;
                     }
-                    return { success: false, error: secondAttempt.error };
+                    return { success: false, error: timelineError(secondAttempt, 'Unknown error fetching bookmarks') };
                 }
-                return { success: false, error: firstAttempt.error };
+                return { success: false, error: timelineError(firstAttempt, 'Unknown error fetching bookmarks') };
             };
             const unlimited = limit === Number.POSITIVE_INFINITY;
             while (unlimited || tweets.length < limit) {
                 const pageCount = unlimited ? pageSize : Math.min(pageSize, limit - tweets.length);
                 const page = await fetchWithRefresh(pageCount, cursor);
                 if (!page.success) {
-                    return { success: false, error: page.error };
+                    return { success: false, error: timelineError(page, 'Unknown error fetching bookmarks') };
                 }
                 pagesFetched += 1;
                 let added = 0;
@@ -382,10 +384,10 @@ export function withTimelines(Base) {
                     return { success: false, error: lastError ?? 'Unknown error fetching bookmark folder', had404 };
                 };
                 let attempt = await tryOnce(buildVariables(pageCount, pageCursor, true));
-                if (!attempt.success && attempt.error?.includes('Variable "$count"')) {
+                if (!attempt.success && timelineError(attempt, '').includes('Variable "$count"')) {
                     attempt = await tryOnce(buildVariables(pageCount, pageCursor, false));
                 }
-                if (!attempt.success && attempt.error?.includes('Variable "$cursor"') && pageCursor) {
+                if (!attempt.success && timelineError(attempt, '').includes('Variable "$cursor"') && pageCursor) {
                     return {
                         success: false,
                         error: 'Bookmark folder pagination rejected the cursor parameter',
@@ -405,16 +407,16 @@ export function withTimelines(Base) {
                     if (secondAttempt.success) {
                         return secondAttempt;
                     }
-                    return { success: false, error: secondAttempt.error };
+                    return { success: false, error: timelineError(secondAttempt, 'Unknown error fetching bookmark folder') };
                 }
-                return { success: false, error: firstAttempt.error };
+                return { success: false, error: timelineError(firstAttempt, 'Unknown error fetching bookmark folder') };
             };
             const unlimited = limit === Number.POSITIVE_INFINITY;
             while (unlimited || tweets.length < limit) {
                 const pageCount = unlimited ? pageSize : Math.min(pageSize, limit - tweets.length);
                 const page = await fetchWithRefresh(pageCount, cursor);
                 if (!page.success) {
-                    return { success: false, error: page.error };
+                    return { success: false, error: timelineError(page, 'Unknown error fetching bookmark folder') };
                 }
                 pagesFetched += 1;
                 let added = 0;

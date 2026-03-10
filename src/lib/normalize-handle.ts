@@ -1,6 +1,5 @@
-// @ts-nocheck
 const HANDLE_REGEX = /^[A-Za-z0-9_]{1,15}$/;
-export function normalizeHandle(input) {
+export function normalizeHandle(input: string | null | undefined): string | null {
     const raw = (input ?? '').trim();
     if (!raw) {
         return null;
@@ -16,7 +15,10 @@ export function normalizeHandle(input) {
     }
     return handle;
 }
-export function mentionsQueryFromUserOption(userOption) {
+export function mentionsQueryFromUserOption(userOption: string | undefined): {
+    query: string | null;
+    error: string | null;
+} {
     if (typeof userOption === 'undefined') {
         return { query: null, error: null };
     }

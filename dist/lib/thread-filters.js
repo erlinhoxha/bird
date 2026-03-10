@@ -1,4 +1,3 @@
-// @ts-nocheck
 const sortByCreatedAt = (tweets) => tweets.slice().sort((a, b) => {
     const aTime = a.createdAt ? Date.parse(a.createdAt) : 0;
     const bTime = b.createdAt ? Date.parse(b.createdAt) : 0;

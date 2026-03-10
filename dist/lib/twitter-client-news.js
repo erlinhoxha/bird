@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { TWITTER_API_BASE } from './twitter-client-constants.js';
 import { buildExploreFeatures } from './twitter-client-features.js';
 const POST_COUNT_REGEX = /[\d.]+[KMB]?\s*posts?/i;

@@ -1,3 +1,7 @@
+import { type ParsedTweet } from './twitter-client-utils.js';
+interface HomeTimelineOptions {
+    includeRaw?: boolean;
+}
 export declare function withHome(Base: any): {
     new (...args: any[]): {
         [x: string]: any;
@@ -6,36 +10,37 @@ export declare function withHome(Base: any): {
         /**
          * Get the authenticated user's "For You" home timeline
          */
-        getHomeTimeline(count?: number, options?: {}): Promise<{
+        getHomeTimeline(count?: number, options?: HomeTimelineOptions): Promise<{
             success: boolean;
-            error: any;
+            error: string;
             tweets?: undefined;
         } | {
             success: boolean;
-            tweets: any[];
+            tweets: ParsedTweet[];
             error?: undefined;
         }>;
         /**
          * Get the authenticated user's "Following" (latest/chronological) home timeline
          */
-        getHomeLatestTimeline(count?: number, options?: {}): Promise<{
+        getHomeLatestTimeline(count?: number, options?: HomeTimelineOptions): Promise<{
             success: boolean;
-            error: any;
+            error: string;
             tweets?: undefined;
         } | {
             success: boolean;
-            tweets: any[];
+            tweets: ParsedTweet[];
             error?: undefined;
         }>;
-        fetchHomeTimeline(operation: any, count: any, options: any): Promise<{
+        fetchHomeTimeline(operation: any, count: any, options: HomeTimelineOptions): Promise<{
             success: boolean;
-            error: any;
+            error: string;
             tweets?: undefined;
         } | {
             success: boolean;
-            tweets: any[];
+            tweets: ParsedTweet[];
             error?: undefined;
         }>;
     };
     [x: string]: any;
 };
+export {};

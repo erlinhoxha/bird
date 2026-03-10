@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { TwitterClientBase } from './twitter-client-base.js';
 import { withBookmarks } from './twitter-client-bookmarks.js';
 import { withEngagement } from './twitter-client-engagement.js';
@@ -18,6 +17,9 @@ import { withUsers } from './twitter-client-users.js';
 // Engagement mixin adds like/unlike/retweet/unretweet/bookmark methods
 const MixedTwitterClient = withNews(withUserTweets(withUserLookup(withUsers(withLists(withHome(withTimelines(withSearch(withTweetDetails(withPosting(withEngagement(withFollow(withBookmarks(withMedia(TwitterClientBase))))))))))))));
 export class TwitterClient extends MixedTwitterClient {
+    constructor(options) {
+        super(options);
+    }
 }
 //# sourceMappingURL=twitter-client.js.map
 //# sourceMappingURL=twitter-client.js.map

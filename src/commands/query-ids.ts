@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { getFeatureOverridesSnapshot, refreshFeatureOverridesCache, } from '../lib/runtime-features.js';
 import { runtimeQueryIds } from '../lib/runtime-query-ids.js';
 function countFeatureOverrides(overrides) {

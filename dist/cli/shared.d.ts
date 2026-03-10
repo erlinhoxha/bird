@@ -1,42 +1,82 @@
+import { resolveCredentials } from '../lib/cookies.js';
 import { extractTweetId } from '../lib/extract-tweet-id.js';
-export declare const collectCookieSource: (value: any, previous?: any[]) => any[];
-export declare function createCliContext(normalizedArgs: any, env?: NodeJS.ProcessEnv): {
+import type { ParsedTweet, TweetMedia } from '../lib/twitter-client-utils.js';
+type CookieSource = 'safari' | 'chrome' | 'firefox';
+type StatusKind = 'ok' | 'warn' | 'err' | 'info' | 'hint';
+type LabelKind = 'url' | 'date' | 'source' | 'engine' | 'credentials' | 'user' | 'userId' | 'email';
+interface OutputConfig {
+    plain: boolean;
+    emoji: boolean;
+    color: boolean;
+    hyperlinks: boolean;
+}
+interface CliColors {
+    banner(text: string): string;
+    subtitle(text: string): string;
+    section(text: string): string;
+    bullet(text: string): string;
+    command(text: string): string;
+    option(text: string): string;
+    argument(text: string): string;
+    description(text: string): string;
+    muted(text: string): string;
+    accent(text: string): string;
+}
+interface CliConfig {
+    chromeProfile?: string;
+    chromeProfileDir?: string;
+    firefoxProfile?: string;
+    cookieSource?: string | string[];
+    cookieTimeoutMs?: number | string;
+    timeoutMs?: number | string;
+    quoteDepth?: number | string;
+}
+interface MediaOptions {
+    media: string[];
+    alts: Array<string | undefined>;
+}
+interface MediaSpec {
+    path: string;
+    mime: string;
+    buffer: Buffer;
+    alt?: string;
+}
+interface PrintableTweet extends ParsedTweet {
+    media?: TweetMedia[];
+    quotedTweet?: PrintableTweet;
+}
+interface PrintTweetsOptions {
+    json?: boolean;
+    emptyMessage?: string;
+    showSeparator?: boolean;
+}
+interface PrintTweetsResultOptions {
+    json?: boolean;
+    usePagination?: boolean;
+    emptyMessage?: string;
+}
+interface TweetsResult {
+    tweets?: PrintableTweet[];
+    nextCursor?: string | null;
+}
+export interface CliContext {
     isTty: boolean;
-    getOutput: () => {
-        plain: any;
-        emoji: boolean;
-        color: boolean;
-        hyperlinks: any;
-    };
-    colors: {
-        banner: (text: any) => any;
-        subtitle: (text: any) => any;
-        section: (text: any) => any;
-        bullet: (text: any) => any;
-        command: (text: any) => any;
-        option: (text: any) => any;
-        argument: (text: any) => any;
-        description: (text: any) => any;
-        muted: (text: any) => any;
-        accent: (text: any) => any;
-    };
-    p: (kind: any) => string;
-    l: (kind: any) => string;
-    config: any;
-    applyOutputFromCommand: (command: any) => void;
-    resolveTimeoutFromOptions: (options: any) => number;
-    resolveQuoteDepthFromOptions: (options: any) => number;
-    resolveCredentialsFromOptions: (opts: any) => Promise<{
-        cookies: {
-            authToken: any;
-            ct0: any;
-            cookieHeader: any;
-            source: any;
-        };
-        warnings: any[];
-    }>;
-    loadMedia: (opts: any) => any[];
-    printTweets: (tweets: any, opts?: {}) => void;
-    printTweetsResult: (result: any, opts: any) => void;
+    getOutput(): OutputConfig;
+    colors: CliColors;
+    p(kind: StatusKind): string;
+    l(kind: LabelKind): string;
+    config: CliConfig;
+    applyOutputFromCommand(command: {
+        optsWithGlobals(): Record<string, unknown>;
+    }): void;
+    resolveTimeoutFromOptions(options: Record<string, unknown>): number | undefined;
+    resolveQuoteDepthFromOptions(options: Record<string, unknown>): number | undefined;
+    resolveCredentialsFromOptions(opts: Record<string, unknown>): ReturnType<typeof resolveCredentials>;
+    loadMedia(opts: MediaOptions): MediaSpec[];
+    printTweets(tweets: PrintableTweet[], opts?: PrintTweetsOptions): void;
+    printTweetsResult(result: TweetsResult, opts: PrintTweetsResultOptions): void;
     extractTweetId: typeof extractTweetId;
-};
+}
+export declare const collectCookieSource: (value: string, previous?: CookieSource[]) => CookieSource[];
+export declare function createCliContext(normalizedArgs: string[], env?: NodeJS.ProcessEnv): CliContext;
+export {};

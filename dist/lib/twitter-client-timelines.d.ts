@@ -1,3 +1,9 @@
+import { type ParsedTweet } from './twitter-client-utils.js';
+interface TimelineOptions {
+    cursor?: string;
+    includeRaw?: boolean;
+    maxPages?: number;
+}
 export declare function withTimelines(Base: any): {
     new (...args: any[]): {
         [x: string]: any;
@@ -8,112 +14,113 @@ export declare function withTimelines(Base: any): {
         /**
          * Get the authenticated user's bookmarks
          */
-        getBookmarks(count?: number, options?: {}): Promise<{
+        getBookmarks(count?: number, options?: TimelineOptions): Promise<{
             success: boolean;
-            error: any;
+            error: string;
             tweets?: undefined;
             nextCursor?: undefined;
         } | {
             success: boolean;
-            tweets: any[];
-            nextCursor: any;
+            tweets: ParsedTweet[];
+            nextCursor: string;
             error?: undefined;
         }>;
-        getAllBookmarks(options: any): Promise<{
+        getAllBookmarks(options?: TimelineOptions): Promise<{
             success: boolean;
-            error: any;
+            error: string;
             tweets?: undefined;
             nextCursor?: undefined;
         } | {
             success: boolean;
-            tweets: any[];
-            nextCursor: any;
+            tweets: ParsedTweet[];
+            nextCursor: string;
             error?: undefined;
         }>;
         /**
          * Get the authenticated user's liked tweets
          */
-        getLikes(count?: number, options?: {}): Promise<{
+        getLikes(count?: number, options?: TimelineOptions): Promise<{
             success: boolean;
             error: any;
             tweets?: undefined;
             nextCursor?: undefined;
         } | {
             success: boolean;
-            tweets: any[];
-            nextCursor: any;
+            tweets: ParsedTweet[];
+            nextCursor: string;
             error?: undefined;
         }>;
-        getAllLikes(options: any): Promise<{
+        getAllLikes(options?: TimelineOptions): Promise<{
             success: boolean;
             error: any;
             tweets?: undefined;
             nextCursor?: undefined;
         } | {
             success: boolean;
-            tweets: any[];
-            nextCursor: any;
+            tweets: ParsedTweet[];
+            nextCursor: string;
             error?: undefined;
         }>;
-        getLikesPaged(limit: any, options?: {}): Promise<{
+        getLikesPaged(limit: any, options?: TimelineOptions): Promise<{
             success: boolean;
             error: any;
             tweets?: undefined;
             nextCursor?: undefined;
         } | {
             success: boolean;
-            tweets: any[];
-            nextCursor: any;
+            tweets: ParsedTweet[];
+            nextCursor: string;
             error?: undefined;
         }>;
         /**
          * Get the authenticated user's bookmark folder timeline
          */
-        getBookmarkFolderTimeline(folderId: any, count?: number, options?: {}): Promise<{
+        getBookmarkFolderTimeline(folderId: any, count?: number, options?: TimelineOptions): Promise<{
             success: boolean;
-            error: any;
+            error: string;
             tweets?: undefined;
             nextCursor?: undefined;
         } | {
             success: boolean;
-            tweets: any[];
-            nextCursor: any;
+            tweets: ParsedTweet[];
+            nextCursor: string;
             error?: undefined;
         }>;
-        getAllBookmarkFolderTimeline(folderId: any, options: any): Promise<{
+        getAllBookmarkFolderTimeline(folderId: any, options?: TimelineOptions): Promise<{
             success: boolean;
-            error: any;
+            error: string;
             tweets?: undefined;
             nextCursor?: undefined;
         } | {
             success: boolean;
-            tweets: any[];
-            nextCursor: any;
+            tweets: ParsedTweet[];
+            nextCursor: string;
             error?: undefined;
         }>;
-        getBookmarksPaged(limit: any, options?: {}): Promise<{
+        getBookmarksPaged(limit: any, options?: TimelineOptions): Promise<{
             success: boolean;
-            error: any;
+            error: string;
             tweets?: undefined;
             nextCursor?: undefined;
         } | {
             success: boolean;
-            tweets: any[];
-            nextCursor: any;
+            tweets: ParsedTweet[];
+            nextCursor: string;
             error?: undefined;
         }>;
-        getBookmarkFolderTimelinePaged(folderId: any, limit: any, options?: {}): Promise<{
+        getBookmarkFolderTimelinePaged(folderId: any, limit: any, options?: TimelineOptions): Promise<{
             success: boolean;
-            error: any;
+            error: string;
             tweets?: undefined;
             nextCursor?: undefined;
         } | {
             success: boolean;
-            tweets: any[];
-            nextCursor: any;
+            tweets: ParsedTweet[];
+            nextCursor: string;
             error?: undefined;
         }>;
-        fetchWithRetry(url: any, init: any): Promise<any>;
+        fetchWithRetry(url: any, init: RequestInit): Promise<any>;
     };
     [x: string]: any;
 };
+export {};

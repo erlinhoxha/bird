@@ -1,4 +1,3 @@
-// @ts-nocheck
 export function registerCheckCommand(program, ctx) {
     program
         .command('check')

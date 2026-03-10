@@ -1,7 +1,6 @@
-// @ts-nocheck
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import path from 'node:path';
+import * as path from 'node:path';
 const DEFAULT_CACHE_FILENAME = 'query-ids-cache.json';
 const DEFAULT_TTL_MS = 24 * 60 * 60 * 1000;
 const DISCOVERY_PAGES = [

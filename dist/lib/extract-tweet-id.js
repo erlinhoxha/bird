@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Extract tweet ID from a Twitter/X URL or return the input unchanged if it's already an ID.
  */

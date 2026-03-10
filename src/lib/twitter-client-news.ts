@@ -1,6 +1,6 @@
-// @ts-nocheck
 import { TWITTER_API_BASE } from './twitter-client-constants.js';
 import { buildExploreFeatures } from './twitter-client-features.js';
+import type { ParsedTweet } from './twitter-client-utils.js';
 const POST_COUNT_REGEX = /[\d.]+[KMB]?\s*posts?/i;
 const POST_COUNT_MATCH_REGEX = /([\d.]+)([KMB]?)\s*posts?/i;
 // Timeline IDs for different Explore tabs
@@ -11,6 +11,25 @@ const TIMELINE_IDS = {
     sports: 'VGltZWxpbmU6DAC2CwABAAAABnNwb3J0cwAA',
     entertainment: 'VGltZWxpbmU6DAC2CwABAAAADWVudGVydGFpbm1lbnQAAA==',
 };
+type NewsTab = keyof typeof TIMELINE_IDS;
+interface NewsItem {
+    id: string;
+    headline: string;
+    category: string;
+    timeAgo?: string;
+    postCount?: number;
+    description?: string;
+    url?: string;
+    tweets?: ParsedTweet[];
+    _raw?: unknown;
+}
+interface NewsOptions {
+    includeRaw?: boolean;
+    withTweets?: boolean;
+    tweetsPerItem?: number;
+    aiOnly?: boolean;
+    tabs?: NewsTab[];
+}
 export function withNews(Base) {
     class TwitterClientNews extends Base {
         // biome-ignore lint/complexity/noUselessConstructor lint/suspicious/noExplicitAny: TS mixin constructor requirement.
@@ -20,14 +39,14 @@ export function withNews(Base) {
         /**
          * Fetch news and trending topics from Twitter's Explore page tabs
          */
-        async getNews(count = 10, options = {}) {
+        async getNews(count = 10, options: NewsOptions = {}) {
             const { includeRaw = false, withTweets = false, tweetsPerItem = 5, aiOnly = false, tabs = ['forYou', 'news', 'sports', 'entertainment'], } = options;
             const debug = process.env.BIRD_DEBUG === '1';
             if (debug) {
                 console.error(`[getNews] Fetching from tabs: ${tabs.join(', ')}`);
             }
-            const allItems = [];
-            const seenHeadlines = new Set();
+            const allItems: NewsItem[] = [];
+            const seenHeadlines = new Set<string>();
             // Fetch from each tab
             for (const tab of tabs) {
                 const timelineId = TIMELINE_IDS[tab];
@@ -71,7 +90,7 @@ export function withNews(Base) {
         /**
          * Fetch a specific timeline tab using GenericTimelineById
          */
-        async fetchTimelineTab(tabName, timelineId, maxCount, aiOnly, includeRaw) {
+        async fetchTimelineTab(tabName: NewsTab, timelineId: string, maxCount: number, aiOnly: boolean, includeRaw: boolean): Promise<NewsItem[]> {
             const queryId = await this.getQueryId('GenericTimelineById');
             const features = buildExploreFeatures();
             const variables = {
@@ -110,9 +129,9 @@ export function withNews(Base) {
          */
         parseTimelineTabItems(
         // biome-ignore lint/suspicious/noExplicitAny: API response structure is complex
-        data, source, maxCount, aiOnly, includeRaw) {
-            const items = [];
-            const seenHeadlines = new Set();
+        data, source, maxCount, aiOnly, includeRaw): NewsItem[] {
+            const items: NewsItem[] = [];
+            const seenHeadlines = new Set<string>();
             // Navigate to timeline instructions
             const timeline = data?.data?.timeline?.timeline;
             if (!timeline) {
@@ -161,7 +180,7 @@ export function withNews(Base) {
         }
         parseNewsItemFromContent(
         // biome-ignore lint/suspicious/noExplicitAny: API response structure is complex
-        itemContent, entryId, source, seenHeadlines, aiOnly, includeRaw) {
+        itemContent, entryId, source, seenHeadlines: Set<string>, aiOnly, includeRaw): NewsItem | null {
             const headline = itemContent.name || itemContent.title;
             if (!headline) {
                 return null;
@@ -241,7 +260,7 @@ export function withNews(Base) {
             if (trendMetadata?.domain_context && (category === 'Trending' || category === 'News')) {
                 category = trendMetadata.domain_context;
             }
-            const item = {
+            const item: NewsItem = {
                 id: trendUrl ?? (entryId ? `${entryId}-${headline}` : `${source}-${headline}`),
                 headline,
                 category: isAiNews ? `AI · ${category}` : category,
@@ -255,7 +274,7 @@ export function withNews(Base) {
             }
             return item;
         }
-        async enrichWithTweets(items, tweetsPerItem, includeRaw) {
+        async enrichWithTweets(items: NewsItem[], tweetsPerItem: number, includeRaw: boolean): Promise<void> {
             const debug = process.env.BIRD_DEBUG === '1';
             for (const item of items) {
                 try {

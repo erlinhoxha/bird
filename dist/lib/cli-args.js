@@ -1,4 +1,3 @@
-// @ts-nocheck
 const TWEET_URL_REGEX = /^(?:https?:\/\/)?(?:www\.)?(?:twitter\.com|x\.com)\/[^/]+\/status\/\d+/i;
 const TWEET_ID_REGEX = /^\d{8,}$/;
 export function looksLikeTweetInput(value) {

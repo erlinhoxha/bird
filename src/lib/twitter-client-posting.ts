@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { TWITTER_API_BASE, TWITTER_GRAPHQL_POST_URL, TWITTER_STATUS_UPDATE_URL } from './twitter-client-constants.js';
 import { buildTweetCreateFeatures } from './twitter-client-features.js';
 export function withPosting(Base) {

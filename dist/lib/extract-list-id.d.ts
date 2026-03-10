@@ -1,1 +1,1 @@
-export declare function extractListId(input: any): any;
+export declare function extractListId(input: string): string | null;

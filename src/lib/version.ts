@@ -1,12 +1,11 @@
-// @ts-nocheck
-import fs from 'node:fs';
-import path from 'node:path';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 export const FALLBACK_VERSION = 'unknown';
 const REF_PREFIX_REGEX = /^ref:\s*/i;
 const LINE_SPLIT_REGEX = /\r?\n/;
 const GITDIR_REGEX = /gitdir:\s*(.+)\s*$/i;
-function readPackageVersionFromJsonFile(candidate) {
+function readPackageVersionFromJsonFile(candidate: string): string | null {
     try {
         const raw = fs.readFileSync(candidate, 'utf8');
         const json = JSON.parse(raw);
@@ -19,7 +18,7 @@ function readPackageVersionFromJsonFile(candidate) {
         return null;
     }
 }
-function readVersionFromTextFile(candidate) {
+function readVersionFromTextFile(candidate: string): string | null {
     try {
         const raw = fs.readFileSync(candidate, 'utf8').trim();
         return raw.length > 0 ? raw : null;
@@ -28,7 +27,7 @@ function readVersionFromTextFile(candidate) {
         return null;
     }
 }
-function resolveStartDir(importMetaUrl) {
+function resolveStartDir(importMetaUrl: string | undefined): string {
     if (typeof importMetaUrl === 'string' && importMetaUrl.trim().length > 0) {
         try {
             return path.dirname(fileURLToPath(importMetaUrl));
@@ -42,7 +41,7 @@ function resolveStartDir(importMetaUrl) {
     }
     return process.cwd();
 }
-export function resolvePackageVersion(importMetaUrl) {
+export function resolvePackageVersion(importMetaUrl?: string): string {
     const injected = typeof process !== 'undefined' && typeof process.env.BIRD_VERSION === 'string'
         ? process.env.BIRD_VERSION.trim()
         : '';
@@ -64,7 +63,7 @@ export function resolvePackageVersion(importMetaUrl) {
     }
     return FALLBACK_VERSION;
 }
-function truncateSha(sha, length = 8) {
+function truncateSha(sha: string, length = 8): string {
     const trimmed = sha.trim();
     if (!trimmed) {
         return '';
@@ -74,7 +73,7 @@ function truncateSha(sha, length = 8) {
     }
     return trimmed.slice(0, length);
 }
-function resolveGitShaFromGitDir(gitDir) {
+function resolveGitShaFromGitDir(gitDir: string): string | null {
     const headPath = path.join(gitDir, 'HEAD');
     let head = '';
     try {
@@ -122,7 +121,7 @@ function resolveGitShaFromGitDir(gitDir) {
     }
     return null;
 }
-export function resolveGitSha(importMetaUrl) {
+export function resolveGitSha(importMetaUrl?: string): string | null {
     const injected = typeof process !== 'undefined' && typeof process.env.BIRD_GIT_SHA === 'string'
         ? process.env.BIRD_GIT_SHA.trim()
         : '';
@@ -164,7 +163,7 @@ export function resolveGitSha(importMetaUrl) {
     }
     return null;
 }
-export function formatVersionLine(importMetaUrl) {
+export function formatVersionLine(importMetaUrl?: string): string {
     const version = resolvePackageVersion(importMetaUrl);
     const sha = resolveGitSha(importMetaUrl);
     return sha ? `${version} (${sha})` : version;

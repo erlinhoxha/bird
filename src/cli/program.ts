@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { Command } from 'commander';
 import { registerBookmarksCommand } from '../commands/bookmarks.js';
 import { registerCheckCommand } from '../commands/check.js';
@@ -15,7 +14,7 @@ import { registerUnbookmarkCommand } from '../commands/unbookmark.js';
 import { registerUserTweetsCommand } from '../commands/user-tweets.js';
 import { registerUserCommands } from '../commands/users.js';
 import { getCliVersion } from '../lib/version.js';
-import { collectCookieSource } from './shared.js';
+import { collectCookieSource, type CliContext } from './shared.js';
 export const KNOWN_COMMANDS = new Set([
     'tweet',
     'reply',
@@ -42,7 +41,7 @@ export const KNOWN_COMMANDS = new Set([
     'whoami',
     'check',
 ]);
-export function createProgram(ctx) {
+export function createProgram(ctx: CliContext): Command {
     const program = new Command();
     program.configureHelp({
         showGlobalOptions: true,
@@ -61,7 +60,7 @@ export function createProgram(ctx) {
         styleSubcommandDescription: (t) => ctx.colors.muted(t),
         styleDescriptionText: (t) => ctx.colors.muted(t),
     });
-    const collect = (value, previous = []) => {
+    const collect = (value: string, previous: string[] = []) => {
         previous.push(value);
         return previous;
     };

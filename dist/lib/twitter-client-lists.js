@@ -1,9 +1,11 @@
-// @ts-nocheck
 // ABOUTME: Mixin for Twitter Lists GraphQL operations.
 // ABOUTME: Provides methods to fetch user's owned lists, memberships, and list timelines.
 import { TWITTER_API_BASE } from './twitter-client-constants.js';
 import { buildListsFeatures } from './twitter-client-features.js';
-import { extractCursorFromInstructions, parseTweetsFromInstructions } from './twitter-client-utils.js';
+import { extractCursorFromInstructions, parseTweetsFromInstructions, } from './twitter-client-utils.js';
+function listTimelineError(result, fallback) {
+    return 'error' in result ? result.error : fallback;
+}
 function parseList(listResult) {
     if (!listResult.id_str || !listResult.name) {
         return null;
@@ -208,7 +210,7 @@ export function withLists(Base) {
         /**
          * Get all tweets from a list timeline (paginated)
          */
-        async getAllListTimeline(listId, options) {
+        async getAllListTimeline(listId, options = {}) {
             return this.getListTimelinePaged(listId, Number.POSITIVE_INFINITY, options);
         }
         /**
@@ -278,16 +280,16 @@ export function withLists(Base) {
                     if (secondAttempt.success) {
                         return secondAttempt;
                     }
-                    return { success: false, error: secondAttempt.error };
+                    return { success: false, error: listTimelineError(secondAttempt, 'Unknown error fetching list timeline') };
                 }
-                return { success: false, error: firstAttempt.error };
+                return { success: false, error: listTimelineError(firstAttempt, 'Unknown error fetching list timeline') };
             };
             const unlimited = limit === Number.POSITIVE_INFINITY;
             while (unlimited || tweets.length < limit) {
                 const pageCount = unlimited ? pageSize : Math.min(pageSize, limit - tweets.length);
                 const page = await fetchWithRefresh(pageCount, cursor);
                 if (!page.success) {
-                    return { success: false, error: page.error };
+                    return { success: false, error: listTimelineError(page, 'Unknown error fetching list timeline') };
                 }
                 pagesFetched += 1;
                 let added = 0;

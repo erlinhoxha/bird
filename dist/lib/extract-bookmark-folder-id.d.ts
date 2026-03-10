@@ -1,1 +1,1 @@
-export declare function extractBookmarkFolderId(input: any): any;
+export declare function extractBookmarkFolderId(input: string): string | null;

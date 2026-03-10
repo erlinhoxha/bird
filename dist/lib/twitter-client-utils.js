@@ -1,29 +1,132 @@
-// @ts-nocheck
-export function normalizeQuoteDepth(value) {
-    if (value === undefined || value === null) {
-        return 1;
+function isRecord(value) {
+    return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+function normalizeMapOptions(quoteDepthOrOptions) {
+    return typeof quoteDepthOrOptions === 'number'
+        ? { quoteDepth: quoteDepthOrOptions }
+        : quoteDepthOrOptions;
+}
+function getEntityMap(contentState) {
+    const entityMap = new Map();
+    const rawEntityMap = contentState.entityMap ?? [];
+    if (Array.isArray(rawEntityMap)) {
+        for (const entry of rawEntityMap) {
+            const key = Number.parseInt(entry.key, 10);
+            if (!Number.isNaN(key)) {
+                entityMap.set(key, entry.value);
+            }
+        }
+        return entityMap;
     }
-    if (!Number.isFinite(value)) {
+    for (const [key, value] of Object.entries(rawEntityMap)) {
+        const keyNumber = Number.parseInt(key, 10);
+        if (!Number.isNaN(keyNumber)) {
+            entityMap.set(keyNumber, value);
+        }
+    }
+    return entityMap;
+}
+function renderBlockText(block, entityMap) {
+    let text = typeof block.text === 'string' ? block.text : '';
+    const linkRanges = (block.entityRanges ?? [])
+        .filter((range) => {
+        const entity = entityMap.get(range.key);
+        return entity?.type === 'LINK' && typeof entity.data?.url === 'string';
+    })
+        .sort((a, b) => b.offset - a.offset);
+    for (const range of linkRanges) {
+        const entity = entityMap.get(range.key);
+        if (typeof entity?.data?.url !== 'string') {
+            continue;
+        }
+        const linkText = text.slice(range.offset, range.offset + range.length);
+        const markdownLink = `[${linkText}](${entity.data.url})`;
+        text = text.slice(0, range.offset) + markdownLink + text.slice(range.offset + range.length);
+    }
+    return text.trim();
+}
+function renderAtomicBlock(block, entityMap) {
+    const entityRanges = block.entityRanges ?? [];
+    if (entityRanges.length === 0) {
+        return undefined;
+    }
+    const entity = entityMap.get(entityRanges[0].key);
+    if (!entity) {
+        return undefined;
+    }
+    switch (entity.type) {
+        case 'MARKDOWN':
+            return entity.data?.markdown?.trim();
+        case 'DIVIDER':
+            return '---';
+        case 'TWEET':
+            return entity.data?.tweetId
+                ? `[Embedded Tweet: https://x.com/i/status/${entity.data.tweetId}]`
+                : undefined;
+        case 'LINK':
+            return entity.data?.url ? `[Link: ${entity.data.url}]` : undefined;
+        case 'IMAGE':
+            return '[Image]';
+        default:
+            return undefined;
+    }
+}
+function getNormalizedArticle(result) {
+    const article = result.article;
+    return {
+        article,
+        articleResult: article?.article_results?.result ?? article,
+    };
+}
+function normalizeTweetUserResult(result) {
+    if (!result) {
+        return undefined;
+    }
+    if (result.__typename === 'UserWithVisibilityResults' && 'user' in result) {
+        return result.user;
+    }
+    return result;
+}
+function isUserEntity(result) {
+    return Boolean(result) && result.__typename === 'User';
+}
+function getEntryTweetResults(entry) {
+    const results = [];
+    const pushResult = (result) => {
+        if (typeof result?.rest_id === 'string') {
+            results.push(result);
+        }
+    };
+    const content = entry.content;
+    pushResult(content?.itemContent?.tweet_results?.result);
+    pushResult(content?.item?.itemContent?.tweet_results?.result);
+    for (const item of content?.items ?? []) {
+        pushResult(item.item?.itemContent?.tweet_results?.result);
+        pushResult(item.itemContent?.tweet_results?.result);
+        pushResult(item.content?.itemContent?.tweet_results?.result);
+    }
+    return results;
+}
+export function normalizeQuoteDepth(value) {
+    if (typeof value !== 'number' || !Number.isFinite(value)) {
         return 1;
     }
     return Math.max(0, Math.floor(value));
 }
 export function firstText(...values) {
     for (const value of values) {
-        if (typeof value === 'string') {
-            const trimmed = value.trim();
-            if (trimmed) {
-                return trimmed;
-            }
+        if (typeof value !== 'string') {
+            continue;
+        }
+        const trimmed = value.trim();
+        if (trimmed) {
+            return trimmed;
         }
     }
     return undefined;
 }
 export function collectTextFields(value, keys, output) {
-    if (!value) {
-        return;
-    }
-    if (typeof value === 'string') {
+    if (!value || typeof value === 'string') {
         return;
     }
     if (Array.isArray(value)) {
@@ -32,19 +135,18 @@ export function collectTextFields(value, keys, output) {
         }
         return;
     }
-    if (typeof value === 'object') {
-        for (const [key, nested] of Object.entries(value)) {
-            if (keys.has(key)) {
-                if (typeof nested === 'string') {
-                    const trimmed = nested.trim();
-                    if (trimmed) {
-                        output.push(trimmed);
-                    }
-                    continue;
-                }
+    if (!isRecord(value)) {
+        return;
+    }
+    for (const [key, nested] of Object.entries(value)) {
+        if (keys.has(key) && typeof nested === 'string') {
+            const trimmed = nested.trim();
+            if (trimmed) {
+                output.push(trimmed);
             }
-            collectTextFields(nested, keys, output);
+            continue;
         }
+        collectTextFields(nested, keys, output);
     }
 }
 export function uniqueOrdered(values) {
@@ -59,44 +161,20 @@ export function uniqueOrdered(values) {
     }
     return result;
 }
-/**
- * Renders a Draft.js content_state into readable markdown/text format.
- * Handles blocks (paragraphs, headers, lists) and entities (code blocks, links, tweets, dividers).
- */
 export function renderContentState(contentState) {
     if (!contentState?.blocks || contentState.blocks.length === 0) {
         return undefined;
     }
-    // Build entity lookup map from array/object formats
-    const entityMap = new Map();
-    const rawEntityMap = contentState.entityMap ?? [];
-    if (Array.isArray(rawEntityMap)) {
-        for (const entry of rawEntityMap) {
-            const key = Number.parseInt(entry.key, 10);
-            if (!Number.isNaN(key)) {
-                entityMap.set(key, entry.value);
-            }
-        }
-    }
-    else {
-        for (const [key, value] of Object.entries(rawEntityMap)) {
-            const keyNumber = Number.parseInt(key, 10);
-            if (!Number.isNaN(keyNumber)) {
-                entityMap.set(keyNumber, value);
-            }
-        }
-    }
+    const entityMap = getEntityMap(contentState);
     const outputLines = [];
     let orderedListCounter = 0;
     let previousBlockType;
     for (const block of contentState.blocks) {
-        // Reset ordered list counter when leaving ordered list context
         if (block.type !== 'ordered-list-item' && previousBlockType === 'ordered-list-item') {
             orderedListCounter = 0;
         }
         switch (block.type) {
             case 'unstyled': {
-                // Plain paragraph - just output text with any inline formatting
                 const text = renderBlockText(block, entityMap);
                 if (text) {
                     outputLines.push(text);
@@ -132,7 +210,7 @@ export function renderContentState(contentState) {
                 break;
             }
             case 'ordered-list-item': {
-                orderedListCounter++;
+                orderedListCounter += 1;
                 const text = renderBlockText(block, entityMap);
                 if (text) {
                     outputLines.push(`${orderedListCounter}. ${text}`);
@@ -147,7 +225,6 @@ export function renderContentState(contentState) {
                 break;
             }
             case 'atomic': {
-                // Atomic blocks are placeholders for embedded entities
                 const entityContent = renderAtomicBlock(block, entityMap);
                 if (entityContent) {
                     outputLines.push(entityContent);
@@ -155,7 +232,6 @@ export function renderContentState(contentState) {
                 break;
             }
             default: {
-                // Fallback: just output the text
                 const text = renderBlockText(block, entityMap);
                 if (text) {
                     outputLines.push(text);
@@ -164,88 +240,24 @@ export function renderContentState(contentState) {
         }
         previousBlockType = block.type;
     }
-    const result = outputLines.join('\n\n');
-    return result.trim() || undefined;
-}
-/**
- * Renders text content of a block, applying inline link entities.
- */
-function renderBlockText(block, entityMap) {
-    let text = block.text;
-    // Handle LINK entities by appending URL in markdown format
-    // Process in reverse order to not mess up offsets
-    const linkRanges = (block.entityRanges ?? [])
-        .filter((range) => {
-        const entity = entityMap.get(range.key);
-        return entity?.type === 'LINK' && entity.data.url;
-    })
-        .sort((a, b) => b.offset - a.offset);
-    for (const range of linkRanges) {
-        const entity = entityMap.get(range.key);
-        if (entity?.data.url) {
-            const linkText = text.slice(range.offset, range.offset + range.length);
-            const markdownLink = `[${linkText}](${entity.data.url})`;
-            text = text.slice(0, range.offset) + markdownLink + text.slice(range.offset + range.length);
-        }
-    }
-    return text.trim();
-}
-/**
- * Renders an atomic block by looking up its entity and returning appropriate content.
- */
-function renderAtomicBlock(block, entityMap) {
-    const entityRanges = block.entityRanges ?? [];
-    if (entityRanges.length === 0) {
-        return undefined;
-    }
-    const entityKey = entityRanges[0].key;
-    const entity = entityMap.get(entityKey);
-    if (!entity) {
-        return undefined;
-    }
-    switch (entity.type) {
-        case 'MARKDOWN':
-            // Code blocks and other markdown content - output as-is
-            return entity.data.markdown?.trim();
-        case 'DIVIDER':
-            return '---';
-        case 'TWEET':
-            if (entity.data.tweetId) {
-                return `[Embedded Tweet: https://x.com/i/status/${entity.data.tweetId}]`;
-            }
-            return undefined;
-        case 'LINK':
-            if (entity.data.url) {
-                return `[Link: ${entity.data.url}]`;
-            }
-            return undefined;
-        case 'IMAGE':
-            // Images in atomic blocks - could extract URL if available
-            return '[Image]';
-        default:
-            return undefined;
-    }
+    const result = outputLines.join('\n\n').trim();
+    return result || undefined;
 }
 export function extractArticleText(result) {
-    const article = result?.article;
-    if (!article) {
+    const { article, articleResult } = getNormalizedArticle(result);
+    if (!article || !articleResult) {
         return undefined;
     }
-    const articleResult = article.article_results?.result ?? article;
     if (process.env.BIRD_DEBUG_ARTICLE === '1') {
         console.error('[bird][debug][article] payload:', JSON.stringify({
-            rest_id: result?.rest_id,
+            rest_id: result.rest_id,
             article: articleResult,
-            note_tweet: result?.note_tweet?.note_tweet_results?.result ?? null,
+            note_tweet: result.note_tweet?.note_tweet_results?.result ?? null,
         }, null, 2));
     }
     const title = firstText(articleResult.title, article.title);
-    // Try to render from rich content_state first (Draft.js format with blocks + entityMap)
-    // This preserves code blocks, embedded tweets, markdown, etc.
-    const contentState = article.article_results?.result?.content_state;
-    const richBody = renderContentState(contentState);
+    const richBody = renderContentState(article.article_results?.result?.content_state);
     if (richBody) {
-        // Rich content found - prepend title if not already included
         if (title) {
             const normalizedTitle = title.trim();
             const trimmedBody = richBody.trimStart();
@@ -259,7 +271,6 @@ export function extractArticleText(result) {
         }
         return richBody;
     }
-    // Fallback to plain text extraction for articles without rich content_state
     let body = firstText(articleResult.plain_text, article.plain_text, articleResult.body?.text, articleResult.body?.richtext?.text, articleResult.body?.rich_text?.text, articleResult.content?.text, articleResult.content?.richtext?.text, articleResult.content?.rich_text?.text, articleResult.text, articleResult.richtext?.text, articleResult.rich_text?.text, article.body?.text, article.body?.richtext?.text, article.body?.rich_text?.text, article.content?.text, article.content?.richtext?.text, article.content?.rich_text?.text, article.text, article.richtext?.text, article.rich_text?.text);
     if (body && title && body.trim() === title.trim()) {
         body = undefined;
@@ -268,8 +279,9 @@ export function extractArticleText(result) {
         const collected = [];
         collectTextFields(articleResult, new Set(['text', 'title']), collected);
         collectTextFields(article, new Set(['text', 'title']), collected);
-        const unique = uniqueOrdered(collected);
-        const filtered = title ? unique.filter((value) => value !== title) : unique;
+        const filtered = title
+            ? uniqueOrdered(collected).filter((value) => value !== title)
+            : uniqueOrdered(collected);
         if (filtered.length > 0) {
             body = filtered.join('\n\n');
         }
@@ -280,32 +292,31 @@ export function extractArticleText(result) {
     return body ?? title;
 }
 export function extractNoteTweetText(result) {
-    const note = result?.note_tweet?.note_tweet_results?.result;
+    const note = result.note_tweet?.note_tweet_results?.result;
     if (!note) {
         return undefined;
     }
     return firstText(note.text, note.richtext?.text, note.rich_text?.text, note.content?.text, note.content?.richtext?.text, note.content?.rich_text?.text);
 }
 export function extractTweetText(result) {
-    return extractArticleText(result) ?? extractNoteTweetText(result) ?? firstText(result?.legacy?.full_text);
+    return extractArticleText(result) ?? extractNoteTweetText(result) ?? firstText(result.legacy?.full_text);
 }
 export function extractArticleMetadata(result) {
-    const article = result?.article;
-    if (!article) {
+    const { article, articleResult } = getNormalizedArticle(result);
+    if (!article || !articleResult) {
         return undefined;
     }
-    const articleResult = article.article_results?.result ?? article;
     const title = firstText(articleResult.title, article.title);
     if (!title) {
         return undefined;
     }
-    // preview_text is available in home timeline responses
-    const previewText = firstText(articleResult.preview_text, article.preview_text);
-    return { title, previewText };
+    return {
+        title,
+        previewText: firstText(articleResult.preview_text, article.preview_text),
+    };
 }
 export function extractMedia(result) {
-    // Prefer extended_entities (has video info), fall back to entities
-    const rawMedia = result?.legacy?.extended_entities?.media ?? result?.legacy?.entities?.media;
+    const rawMedia = result.legacy?.extended_entities?.media ?? result.legacy?.entities?.media;
     if (!rawMedia || rawMedia.length === 0) {
         return undefined;
     }
@@ -318,26 +329,22 @@ export function extractMedia(result) {
             type: item.type,
             url: item.media_url_https,
         };
-        // Get dimensions from largest available size
         const sizes = item.sizes;
-        if (sizes?.large) {
+        if (typeof sizes?.large?.w === 'number' && typeof sizes.large.h === 'number') {
             mediaItem.width = sizes.large.w;
             mediaItem.height = sizes.large.h;
         }
-        else if (sizes?.medium) {
+        else if (typeof sizes?.medium?.w === 'number' && typeof sizes.medium.h === 'number') {
             mediaItem.width = sizes.medium.w;
             mediaItem.height = sizes.medium.h;
         }
-        // For thumbnails/previews
         if (sizes?.small) {
             mediaItem.previewUrl = `${item.media_url_https}:small`;
         }
-        // Extract video URL for video/animated_gif
         if ((item.type === 'video' || item.type === 'animated_gif') && item.video_info?.variants) {
-            // Prefer highest bitrate MP4, fall back to first MP4 when bitrate is missing.
-            const mp4Variants = item.video_info.variants.filter((v) => v.content_type === 'video/mp4' && typeof v.url === 'string');
+            const mp4Variants = item.video_info.variants.filter((variant) => variant.content_type === 'video/mp4' && typeof variant.url === 'string');
             const mp4WithBitrate = mp4Variants
-                .filter((v) => typeof v.bitrate === 'number')
+                .filter((variant) => typeof variant.bitrate === 'number')
                 .sort((a, b) => b.bitrate - a.bitrate);
             const selectedVariant = mp4WithBitrate[0] ?? mp4Variants[0];
             if (selectedVariant) {
@@ -355,21 +362,18 @@ export function unwrapTweetResult(result) {
     if (!result) {
         return undefined;
     }
-    if (result.tweet) {
-        return result.tweet;
-    }
-    return result;
+    return result.tweet ?? result;
 }
 export function mapTweetResult(result, quoteDepthOrOptions) {
-    const options = typeof quoteDepthOrOptions === 'number' ? { quoteDepth: quoteDepthOrOptions } : quoteDepthOrOptions;
+    const options = normalizeMapOptions(quoteDepthOrOptions);
     const { quoteDepth, includeRaw = false } = options;
-    const userResult = result?.core?.user_results?.result;
+    const userResult = normalizeTweetUserResult(result.core?.user_results?.result);
     const userLegacy = userResult?.legacy;
     const userCore = userResult?.core;
     const username = userLegacy?.screen_name ?? userCore?.screen_name;
     const name = userLegacy?.name ?? userCore?.name ?? username;
     const userId = userResult?.rest_id;
-    if (!result?.rest_id || !username) {
+    if (!result.rest_id || !username) {
         return undefined;
     }
     const text = extractTweetText(result);
@@ -383,8 +387,6 @@ export function mapTweetResult(result, quoteDepthOrOptions) {
             quotedTweet = mapTweetResult(quotedResult, { quoteDepth: quoteDepth - 1, includeRaw });
         }
     }
-    const media = extractMedia(result);
-    const article = extractArticleMetadata(result);
     const tweetData = {
         id: result.rest_id,
         text,
@@ -400,8 +402,8 @@ export function mapTweetResult(result, quoteDepthOrOptions) {
         },
         authorId: userId,
         quotedTweet,
-        media,
-        article,
+        media: extractMedia(result),
+        article: extractArticleMetadata(result),
     };
     if (includeRaw) {
         tweetData._raw = result;
@@ -409,11 +411,8 @@ export function mapTweetResult(result, quoteDepthOrOptions) {
     return tweetData;
 }
 export function findTweetInInstructions(instructions, tweetId) {
-    if (!instructions) {
-        return undefined;
-    }
-    for (const instruction of instructions) {
-        for (const entry of instruction.entries || []) {
+    for (const instruction of instructions ?? []) {
+        for (const entry of instruction.entries ?? []) {
             const result = entry.content?.itemContent?.tweet_results?.result;
             if (result?.rest_id === tweetId) {
                 return result;
@@ -423,32 +422,16 @@ export function findTweetInInstructions(instructions, tweetId) {
     return undefined;
 }
 export function collectTweetResultsFromEntry(entry) {
-    const results = [];
-    const pushResult = (result) => {
-        if (result?.rest_id) {
-            results.push(result);
-        }
-    };
-    const content = entry.content;
-    pushResult(content?.itemContent?.tweet_results?.result);
-    pushResult(content?.item?.itemContent?.tweet_results?.result);
-    for (const item of content?.items ?? []) {
-        pushResult(item?.item?.itemContent?.tweet_results?.result);
-        pushResult(item?.itemContent?.tweet_results?.result);
-        pushResult(item?.content?.itemContent?.tweet_results?.result);
-    }
-    return results;
+    return getEntryTweetResults(entry);
 }
 export function parseTweetsFromInstructions(instructions, quoteDepthOrOptions) {
-    const options = typeof quoteDepthOrOptions === 'number' ? { quoteDepth: quoteDepthOrOptions } : quoteDepthOrOptions;
-    const { quoteDepth, includeRaw = false } = options;
+    const options = normalizeMapOptions(quoteDepthOrOptions);
     const tweets = [];
     const seen = new Set();
     for (const instruction of instructions ?? []) {
         for (const entry of instruction.entries ?? []) {
-            const results = collectTweetResultsFromEntry(entry);
-            for (const result of results) {
-                const mapped = mapTweetResult(result, { quoteDepth, includeRaw });
+            for (const result of collectTweetResultsFromEntry(entry)) {
+                const mapped = mapTweetResult(result, options);
                 if (!mapped || seen.has(mapped.id)) {
                     continue;
                 }
@@ -463,7 +446,9 @@ export function extractCursorFromInstructions(instructions, cursorType = 'Bottom
     for (const instruction of instructions ?? []) {
         for (const entry of instruction.entries ?? []) {
             const content = entry.content;
-            if (content?.cursorType === cursorType && typeof content.value === 'string' && content.value.length > 0) {
+            if (content?.cursorType === cursorType &&
+                typeof content.value === 'string' &&
+                content.value.length > 0) {
                 return content.value;
             }
         }
@@ -471,21 +456,11 @@ export function extractCursorFromInstructions(instructions, cursorType = 'Bottom
     return undefined;
 }
 export function parseUsersFromInstructions(instructions) {
-    if (!instructions) {
-        return [];
-    }
     const users = [];
-    for (const instruction of instructions) {
-        if (!instruction.entries) {
-            continue;
-        }
-        for (const entry of instruction.entries) {
-            const content = entry?.content;
-            const rawUserResult = content?.itemContent?.user_results?.result;
-            const userResult = rawUserResult?.__typename === 'UserWithVisibilityResults' && rawUserResult.user
-                ? rawUserResult.user
-                : rawUserResult;
-            if (!userResult || userResult.__typename !== 'User') {
+    for (const instruction of instructions ?? []) {
+        for (const entry of instruction.entries ?? []) {
+            const userResult = normalizeTweetUserResult(entry.content?.itemContent?.user_results?.result);
+            if (!isUserEntity(userResult)) {
                 continue;
             }
             const legacy = userResult.legacy;
@@ -509,5 +484,4 @@ export function parseUsersFromInstructions(instructions) {
     }
     return users;
 }
-//# sourceMappingURL=twitter-client-utils.js.map
 //# sourceMappingURL=twitter-client-utils.js.map

@@ -1,12 +1,13 @@
-// @ts-nocheck
 import { randomBytes, randomUUID } from 'node:crypto';
 import { runtimeQueryIds } from './runtime-query-ids.js';
 import { QUERY_IDS, TARGET_QUERY_ID_OPERATIONS } from './twitter-client-constants.js';
-import { createRequestTransactionId, fetchViaRequestBridge, getDefaultTwitterUserAgent, resolveTwitterUserAgent } from './twitter-request-bridge.js';
+import { createRequestTransactionId, fetchViaRequestBridge, getDefaultTwitterUserAgent, resolveTwitterUserAgent, } from './twitter-request-bridge.js';
 import { normalizeQuoteDepth } from './twitter-client-utils.js';
+const DEFAULT_CHROME_VERSION = '131';
+const TWITTER_BEARER_TOKEN = 'AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA';
 function chromeVersionFromUserAgent(userAgent) {
     const match = /Chrome\/(\d+)/.exec(userAgent);
-    return match?.[1] ?? '131';
+    return match?.[1] ?? DEFAULT_CHROME_VERSION;
 }
 function getSecChUa(version) {
     return `"Chromium";v="${version}", "Not(A:Brand";v="99", "Google Chrome";v="${version}"`;
@@ -27,12 +28,16 @@ export class TwitterClientBase {
         }
         this.authToken = options.cookies.authToken;
         this.ct0 = options.cookies.ct0;
-        this.cookieHeader = options.cookies.cookieHeader || `auth_token=${this.authToken}; ct0=${this.ct0}`;
+        this.cookieHeader =
+            options.cookies.cookieHeader || `auth_token=${this.authToken}; ct0=${this.ct0}`;
         this.userAgent = options.userAgent || getDefaultTwitterUserAgent();
         this.timeoutMs = options.timeoutMs;
         this.quoteDepth = normalizeQuoteDepth(options.quoteDepth);
         this.clientUuid = randomUUID();
         this.clientDeviceId = randomUUID();
+    }
+    async getCurrentUser() {
+        throw new Error('TwitterClientBase.getCurrentUser() must be implemented by a mixin');
     }
     async sleep(ms) {
         await new Promise((resolve) => setTimeout(resolve, ms));
@@ -49,7 +54,7 @@ export class TwitterClientBase {
             await runtimeQueryIds.refresh(TARGET_QUERY_ID_OPERATIONS, { force: true });
         }
         catch {
-            // ignore refresh failures; callers will fall back to baked-in IDs
+            // Ignore refresh failures; callers fall back to baked-in IDs.
         }
     }
     async withRefreshedQueryIdsOn404(attempt) {
@@ -69,7 +74,7 @@ export class TwitterClientBase {
         const primary = await this.getQueryId('SearchTimeline');
         return Array.from(new Set([primary, 'M1jEez78PEfVfbQLvlWMvQ', '5h0kNbk3ii97rmfY6CdgAA', 'Tp1sewRU1AsZpBWhqCZicQ']));
     }
-    async fetchWithTimeout(url, init) {
+    async fetchWithTimeout(url, init = {}) {
         const method = (init.method ?? 'GET').toUpperCase();
         const headers = new Headers(init.headers ?? {});
         const resolvedUserAgent = await resolveTwitterUserAgent(headers.get('user-agent') || this.userAgent);
@@ -115,7 +120,7 @@ export class TwitterClientBase {
         const headers = {
             accept: '*/*',
             'accept-language': 'en-US,en;q=0.9',
-            authorization: 'Bearer AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA',
+            authorization: `Bearer ${TWITTER_BEARER_TOKEN}`,
             'x-csrf-token': this.ct0,
             'x-twitter-auth-type': 'OAuth2Session',
             'x-twitter-active-user': 'yes',
@@ -146,21 +151,17 @@ export class TwitterClientBase {
         };
     }
     getUploadHeaders() {
-        // Note: do not set content-type; URLSearchParams/FormData need to set it (incl boundary) themselves.
+        // Do not set content-type here; URLSearchParams/FormData need to set it, including boundaries.
         return this.getBaseHeaders();
     }
     async ensureClientUserId() {
-        if (process.env.NODE_ENV === 'test') {
-            return;
-        }
-        if (this.clientUserId) {
+        if (process.env.NODE_ENV === 'test' || this.clientUserId) {
             return;
         }
         const result = await this.getCurrentUser();
-        if (result.success && result.user?.id) {
+        if (result.success && result.user.id) {
             this.clientUserId = result.user.id;
         }
     }
 }
-//# sourceMappingURL=twitter-client-base.js.map
 //# sourceMappingURL=twitter-client-base.js.map

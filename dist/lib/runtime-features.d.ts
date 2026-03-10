@@ -1,11 +1,14 @@
-export declare function loadFeatureOverrides(): any;
-export declare function getFeatureOverridesSnapshot(): {
-    cachePath: any;
-    overrides: {};
-};
-export declare function applyFeatureOverrides(setName: any, base: any): any;
-export declare function refreshFeatureOverridesCache(): Promise<{
-    cachePath: any;
-    overrides: {};
-}>;
+export type FeatureMap = Record<string, boolean>;
+export interface FeatureOverrides {
+    global: FeatureMap;
+    sets: Record<string, FeatureMap>;
+}
+export interface FeatureOverrideSnapshot {
+    cachePath: string;
+    overrides: Partial<FeatureOverrides>;
+}
+export declare function loadFeatureOverrides(): FeatureOverrides;
+export declare function getFeatureOverridesSnapshot(): FeatureOverrideSnapshot;
+export declare function applyFeatureOverrides<T extends FeatureMap>(setName: string, base: T): T;
+export declare function refreshFeatureOverridesCache(): Promise<FeatureOverrideSnapshot>;
 export declare function clearFeatureOverridesCache(): void;

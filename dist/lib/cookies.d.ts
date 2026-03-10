@@ -1,40 +1,27 @@
-export declare function extractCookiesFromSafari(): Promise<{
-    cookies: {
-        authToken: any;
-        ct0: any;
-        cookieHeader: any;
-        source: any;
-    };
-    warnings: any[];
-}>;
-export declare function extractCookiesFromChrome(profile: any): Promise<{
-    cookies: {
-        authToken: any;
-        ct0: any;
-        cookieHeader: any;
-        source: any;
-    };
-    warnings: any[];
-}>;
-export declare function extractCookiesFromFirefox(profile: any): Promise<{
-    cookies: {
-        authToken: any;
-        ct0: any;
-        cookieHeader: any;
-        source: any;
-    };
-    warnings: any[];
-}>;
+export type CookieSource = 'safari' | 'chrome' | 'firefox';
+export interface TwitterCookies {
+    authToken: string | null;
+    ct0: string | null;
+    cookieHeader: string | null;
+    source: string | null;
+}
+export interface CookieExtractionResult {
+    cookies: TwitterCookies;
+    warnings: string[];
+}
+export interface ResolveCredentialsOptions {
+    authToken?: string;
+    ct0?: string;
+    cookieSource?: CookieSource | CookieSource[];
+    chromeProfile?: string;
+    firefoxProfile?: string;
+    cookieTimeoutMs?: number;
+}
+export declare function extractCookiesFromSafari(): Promise<CookieExtractionResult>;
+export declare function extractCookiesFromChrome(profile?: string): Promise<CookieExtractionResult>;
+export declare function extractCookiesFromFirefox(profile?: string): Promise<CookieExtractionResult>;
 /**
  * Resolve Twitter credentials from multiple sources.
  * Priority: CLI args > environment variables > browsers (ordered).
  */
-export declare function resolveCredentials(options: any): Promise<{
-    cookies: {
-        authToken: any;
-        ct0: any;
-        cookieHeader: any;
-        source: any;
-    };
-    warnings: any[];
-}>;
+export declare function resolveCredentials(options: ResolveCredentialsOptions): Promise<CookieExtractionResult>;

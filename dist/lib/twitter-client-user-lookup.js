@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { normalizeHandle } from './normalize-handle.js';
 import { TWITTER_API_BASE } from './twitter-client-constants.js';
 export function withUserLookup(Base) {

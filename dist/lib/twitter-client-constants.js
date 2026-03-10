@@ -1,4 +1,3 @@
-// @ts-nocheck
 // biome-ignore lint/correctness/useImportExtensions: JSON module import doesn't use .js extension.
 import queryIds from './query-ids.json' with { type: 'json' };
 export const TWITTER_API_BASE = 'https://x.com/i/api/graphql';
@@ -43,9 +42,10 @@ export const FALLBACK_QUERY_IDS = {
     TrendHistory: 'Sj4T-jSB9pr0Mxtsc1UKZQ',
     AboutAccountQuery: 'zs_jFPFT78rBpXv9Z3U2YQ',
 };
+const normalizedQueryIds = typeof queryIds === 'object' && queryIds ? queryIds : {};
 export const QUERY_IDS = {
     ...FALLBACK_QUERY_IDS,
-    ...queryIds,
+    ...normalizedQueryIds,
 };
 export const TARGET_QUERY_ID_OPERATIONS = Object.keys(FALLBACK_QUERY_IDS);
 //# sourceMappingURL=twitter-client-constants.js.map

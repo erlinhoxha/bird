@@ -1,5 +1,4 @@
-// @ts-nocheck
-import { createCuimpHttp } from 'cuimp';
+import { createCuimpHttp, } from 'cuimp';
 import { ClientTransaction, handleXMigration } from 'x-client-transaction-id';
 const CLIENT_TRANSACTION_CACHE_TTL_MS = 30 * 60 * 1000;
 const DEFAULT_CHROME_VERSION = '136';
@@ -23,7 +22,11 @@ function hostForUrl(url) {
 }
 function isBridgeableTwitterHost(url) {
     const host = hostForUrl(url);
-    return host === 'x.com' || host === 'api.x.com' || host === 'twitter.com' || host === 'api.twitter.com' || host === 'upload.twitter.com';
+    return (host === 'x.com' ||
+        host === 'api.x.com' ||
+        host === 'twitter.com' ||
+        host === 'api.twitter.com' ||
+        host === 'upload.twitter.com');
 }
 function normalizeChromeVersion(version) {
     if (typeof version !== 'string') {
@@ -36,12 +39,11 @@ function buildTwitterUserAgent(version) {
     return `${DEFAULT_TWITTER_USER_AGENT_PREFIX}${version}.0.0.0 Safari/537.36`;
 }
 function isBirdDefaultChromeUserAgent(userAgent) {
-    return typeof userAgent === 'string' &&
-        userAgent.startsWith(DEFAULT_TWITTER_USER_AGENT_PREFIX) &&
-        userAgent.endsWith('.0.0.0 Safari/537.36');
+    return (userAgent.startsWith(DEFAULT_TWITTER_USER_AGENT_PREFIX) &&
+        userAgent.endsWith('.0.0.0 Safari/537.36'));
 }
 function chromeVersionFromUserAgent(userAgent) {
-    const match = /Chrome\/(\d+)/.exec(userAgent || '');
+    const match = /Chrome\/(\d+)/.exec(userAgent);
     return match?.[1] ?? DEFAULT_CHROME_VERSION;
 }
 function requestedChromeVersionForUserAgent(userAgent) {
@@ -57,6 +59,12 @@ function requestedChromeVersionForUserAgent(userAgent) {
     }
     return parsedVersion === resolvedChromeVersion ? parsedVersion : null;
 }
+function buildCuimpDescriptor(version) {
+    return {
+        browser: 'chrome',
+        ...(version ? { version } : {}),
+    };
+}
 function getCuimpClient(userAgent) {
     const version = requestedChromeVersionForUserAgent(userAgent);
     const cacheKey = version ? `chrome:${version}` : 'chrome:default';
@@ -65,10 +73,7 @@ function getCuimpClient(userAgent) {
         return existing;
     }
     const client = createCuimpHttp({
-        descriptor: {
-            browser: 'chrome',
-            ...(version ? { version } : {}),
-        },
+        descriptor: buildCuimpDescriptor(version),
         logger: quietCuimpLogger,
         proxy: process.env.TWITTER_PROXY || undefined,
     });
@@ -88,23 +93,27 @@ async function resolveActiveChromeVersion(userAgent) {
         }
     }
     catch {
-        // fall through to request/cached/default version below
+        // Fall through to the requested/cached/default version below.
     }
-    return requestedChromeVersionForUserAgent(userAgent) ?? resolvedChromeVersion ?? DEFAULT_CHROME_VERSION;
+    return (requestedChromeVersionForUserAgent(userAgent) ??
+        resolvedChromeVersion ??
+        DEFAULT_CHROME_VERSION);
 }
 export function getDefaultTwitterUserAgent() {
     return buildTwitterUserAgent(resolvedChromeVersion ?? DEFAULT_CHROME_VERSION);
 }
 export async function resolveTwitterUserAgent(userAgent) {
-    if (!isBirdDefaultChromeUserAgent(userAgent ?? '')) {
+    if (!userAgent || !isBirdDefaultChromeUserAgent(userAgent)) {
         return userAgent || getDefaultTwitterUserAgent();
     }
     const version = await resolveActiveChromeVersion(userAgent);
     return buildTwitterUserAgent(version);
 }
 async function getClientTransaction(userAgent) {
+    void userAgent;
     const now = Date.now();
-    if (clientTransactionCache && now - clientTransactionCache.createdAt < CLIENT_TRANSACTION_CACHE_TTL_MS) {
+    if (clientTransactionCache &&
+        now - clientTransactionCache.createdAt < CLIENT_TRANSACTION_CACHE_TTL_MS) {
         return clientTransactionCache.transaction;
     }
     const document = await handleXMigration();
@@ -112,7 +121,6 @@ async function getClientTransaction(userAgent) {
     clientTransactionCache = {
         createdAt: now,
         transaction,
-        userAgent,
     };
     return transaction;
 }
@@ -151,6 +159,21 @@ async function serializeBody(body, headers) {
     }
     return { data: undefined, headers };
 }
+function normalizeMethod(method) {
+    const upperMethod = method?.toUpperCase();
+    switch (upperMethod) {
+        case 'DELETE':
+        case 'GET':
+        case 'HEAD':
+        case 'OPTIONS':
+        case 'PATCH':
+        case 'POST':
+        case 'PUT':
+            return upperMethod;
+        default:
+            return 'GET';
+    }
+}
 export async function createRequestTransactionId({ method, url, userAgent, timeoutMs, }) {
     void timeoutMs;
     if (!isBridgeableTwitterHost(url)) {
@@ -167,22 +190,23 @@ export async function createRequestTransactionId({ method, url, userAgent, timeo
         return null;
     }
 }
-export async function fetchViaRequestBridge(url, init, timeoutMs) {
+export async function fetchViaRequestBridge(url, init = {}, timeoutMs) {
     if (!isBridgeableTwitterHost(url)) {
         return null;
     }
     try {
+        const method = normalizeMethod(init.method);
         const headerEntries = Object.fromEntries(new Headers(init.headers ?? {}).entries());
         const { data, headers } = await serializeBody(init.body, headerEntries);
-        const client = getCuimpClient(headers['user-agent'] || '');
+        const client = getCuimpClient(headers['user-agent']);
         const response = await client.request({
             url,
-            method: (init.method ?? 'GET').toUpperCase(),
+            method,
             headers,
             data,
             timeout: timeoutMs,
         });
-        return new Response(response.rawBody, {
+        return new Response(new Uint8Array(response.rawBody), {
             status: response.status,
             statusText: response.statusText,
             headers: response.headers,

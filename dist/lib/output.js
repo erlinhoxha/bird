@@ -1,4 +1,3 @@
-// @ts-nocheck
 const STATUS = {
     ok: { emoji: '✅', text: 'OK:', plain: '[ok]' },
     warn: { emoji: '⚠️', text: 'Warning:', plain: '[warn]' },

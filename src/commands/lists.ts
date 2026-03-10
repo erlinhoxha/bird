@@ -1,7 +1,6 @@
-// @ts-nocheck
 // ABOUTME: CLI command for fetching Twitter Lists.
 // ABOUTME: Supports listing owned lists, memberships, and list timelines.
-import { parsePaginationFlags } from '../cli/pagination.js';
+import { isPaginationFlagsFailure, parsePaginationFlags } from '../cli/pagination.js';
 import { extractListId } from '../lib/extract-list-id.js';
 import { hyperlink } from '../lib/output.js';
 import { TwitterClient } from '../lib/twitter-client.js';
@@ -80,7 +79,7 @@ export function registerListsCommand(program, ctx) {
         const quoteDepth = ctx.resolveQuoteDepthFromOptions(opts);
         const count = Number.parseInt(cmdOpts.count || '20', 10);
         const pagination = parsePaginationFlags(cmdOpts, { maxPagesImpliesPagination: true });
-        if (!pagination.ok) {
+        if (isPaginationFlagsFailure(pagination)) {
             console.error(`${ctx.p('err')}${pagination.error}`);
             process.exit(1);
         }

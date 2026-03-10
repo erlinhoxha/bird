@@ -1,8 +1,27 @@
-// @ts-nocheck
 import { TWITTER_API_BASE } from './twitter-client-constants.js';
 import { buildHomeTimelineFeatures } from './twitter-client-features.js';
-import { extractCursorFromInstructions, parseTweetsFromInstructions } from './twitter-client-utils.js';
+import {
+    extractCursorFromInstructions,
+    parseTweetsFromInstructions,
+    type ParsedTweet,
+} from './twitter-client-utils.js';
 const QUERY_UNSPECIFIED_REGEX = /query:\s*unspecified/i;
+interface HomeTimelineOptions {
+    includeRaw?: boolean;
+}
+function homeTimelineError(result: HomeTimelinePageResult, fallback: string): string {
+    return 'error' in result ? result.error : fallback;
+}
+type HomeTimelinePageResult = {
+    success: true;
+    tweets: ParsedTweet[];
+    cursor?: string;
+    had404: boolean;
+} | {
+    success: false;
+    error: string;
+    had404?: boolean;
+};
 function isQueryIdMismatch(errors) {
     return errors.some((error) => QUERY_UNSPECIFIED_REGEX.test(error.message ?? ''));
 }
@@ -23,23 +42,23 @@ export function withHome(Base) {
         /**
          * Get the authenticated user's "For You" home timeline
          */
-        async getHomeTimeline(count = 20, options = {}) {
+        async getHomeTimeline(count = 20, options: HomeTimelineOptions = {}) {
             return this.fetchHomeTimeline('HomeTimeline', count, options);
         }
         /**
          * Get the authenticated user's "Following" (latest/chronological) home timeline
          */
-        async getHomeLatestTimeline(count = 20, options = {}) {
+        async getHomeLatestTimeline(count = 20, options: HomeTimelineOptions = {}) {
             return this.fetchHomeTimeline('HomeLatestTimeline', count, options);
         }
-        async fetchHomeTimeline(operation, count, options) {
+        async fetchHomeTimeline(operation, count, options: HomeTimelineOptions) {
             const { includeRaw = false } = options;
             const features = buildHomeTimelineFeatures();
             const pageSize = 20;
-            const seen = new Set();
-            const tweets = [];
-            let cursor;
-            const fetchPage = async (pageCount, pageCursor) => {
+            const seen = new Set<string>();
+            const tweets: ParsedTweet[] = [];
+            let cursor: string | undefined;
+            const fetchPage = async (pageCount, pageCursor): Promise<HomeTimelinePageResult> => {
                 let lastError;
                 let had404 = false;
                 const queryIds = operation === 'HomeTimeline'
@@ -93,7 +112,7 @@ export function withHome(Base) {
                 }
                 return { success: false, error: lastError ?? 'Unknown error fetching home timeline', had404 };
             };
-            const fetchWithRefresh = async (pageCount, pageCursor) => {
+            const fetchWithRefresh = async (pageCount, pageCursor): Promise<HomeTimelinePageResult> => {
                 const firstAttempt = await fetchPage(pageCount, pageCursor);
                 if (firstAttempt.success) {
                     return firstAttempt;
@@ -104,15 +123,15 @@ export function withHome(Base) {
                     if (secondAttempt.success) {
                         return secondAttempt;
                     }
-                    return { success: false, error: secondAttempt.error };
+                    return { success: false, error: homeTimelineError(secondAttempt, 'Unknown error fetching home timeline') };
                 }
-                return { success: false, error: firstAttempt.error };
+                return { success: false, error: homeTimelineError(firstAttempt, 'Unknown error fetching home timeline') };
             };
             while (tweets.length < count) {
                 const pageCount = Math.min(pageSize, count - tweets.length);
                 const page = await fetchWithRefresh(pageCount, cursor);
                 if (!page.success) {
-                    return { success: false, error: page.error };
+                    return { success: false, error: homeTimelineError(page, 'Unknown error fetching home timeline') };
                 }
                 let added = 0;
                 for (const tweet of page.tweets) {

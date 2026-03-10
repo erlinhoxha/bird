@@ -1,4 +1,3 @@
-// @ts-nocheck
 const STATUS = {
     ok: { emoji: '✅', text: 'OK:', plain: '[ok]' },
     warn: { emoji: '⚠️', text: 'Warning:', plain: '[warn]' },
@@ -16,7 +15,25 @@ const LABELS = {
     userId: { emoji: '🪪', text: 'User ID:', plain: 'user_id:' },
     email: { emoji: '📧', text: 'Email:', plain: 'email:' },
 };
-export function resolveOutputConfigFromArgv(argv, env, isTty) {
+export type OutputStatusKind = keyof typeof STATUS;
+export type OutputLabelKind = keyof typeof LABELS;
+export interface OutputConfig {
+    plain: boolean;
+    emoji: boolean;
+    color: boolean;
+    hyperlinks: boolean;
+}
+export interface OutputCommanderOptions {
+    plain?: boolean;
+    emoji?: boolean;
+    color?: boolean;
+}
+export interface TweetStats {
+    likeCount?: number;
+    retweetCount?: number;
+    replyCount?: number;
+}
+export function resolveOutputConfigFromArgv(argv: string[], env: NodeJS.ProcessEnv, isTty: boolean): OutputConfig {
     const hasNoColorEnv = Object.hasOwn(env, 'NO_COLOR') || env.TERM === 'dumb';
     const defaultColor = isTty && !hasNoColorEnv;
     const plain = argv.includes('--plain');
@@ -25,7 +42,7 @@ export function resolveOutputConfigFromArgv(argv, env, isTty) {
     const hyperlinks = !plain && isTty;
     return { plain, emoji, color, hyperlinks };
 }
-export function resolveOutputConfigFromCommander(opts, env, isTty) {
+export function resolveOutputConfigFromCommander(opts: OutputCommanderOptions, env: NodeJS.ProcessEnv, isTty: boolean): OutputConfig {
     const hasNoColorEnv = Object.hasOwn(env, 'NO_COLOR') || env.TERM === 'dumb';
     const defaultColor = isTty && !hasNoColorEnv;
     const plain = Boolean(opts.plain);
@@ -34,7 +51,7 @@ export function resolveOutputConfigFromCommander(opts, env, isTty) {
     const hyperlinks = !plain && isTty;
     return { plain, emoji, color, hyperlinks };
 }
-export function statusPrefix(kind, cfg) {
+export function statusPrefix(kind: OutputStatusKind, cfg: OutputConfig): string {
     if (cfg.plain) {
         return `${STATUS[kind].plain} `;
     }
@@ -43,7 +60,7 @@ export function statusPrefix(kind, cfg) {
     }
     return `${STATUS[kind].text} `;
 }
-export function labelPrefix(kind, cfg) {
+export function labelPrefix(kind: OutputLabelKind, cfg: OutputConfig): string {
     if (cfg.plain) {
         return `${LABELS[kind].plain} `;
     }
@@ -52,7 +69,7 @@ export function labelPrefix(kind, cfg) {
     }
     return `${LABELS[kind].text} `;
 }
-export function formatStatsLine(stats, cfg) {
+export function formatStatsLine(stats: TweetStats, cfg: OutputConfig): string {
     const likeCount = stats.likeCount ?? 0;
     const retweetCount = stats.retweetCount ?? 0;
     const replyCount = stats.replyCount ?? 0;
@@ -64,14 +81,14 @@ export function formatStatsLine(stats, cfg) {
     }
     return `❤️ ${likeCount}  🔁 ${retweetCount}  💬 ${replyCount}`;
 }
-export function formatTweetUrl(tweetId) {
+export function formatTweetUrl(tweetId: string): string {
     return `https://x.com/i/status/${tweetId}`;
 }
 /**
  * Wraps a URL in OSC 8 escape sequences to make it clickable in supported terminals.
  * Falls back to plain text when not in a TTY or when hyperlinks are disabled.
  */
-export function hyperlink(url, text, cfg) {
+export function hyperlink(url: string, text: string | undefined, cfg: OutputConfig | undefined): string {
     const displayText = text ?? url;
     // Only use hyperlinks when explicitly enabled (requires TTY and not plain mode)
     if (!cfg?.hyperlinks) {
@@ -82,7 +99,7 @@ export function hyperlink(url, text, cfg) {
     // OSC 8 hyperlink: \x1b]8;;URL\x07TEXT\x1b]8;;\x07
     return `\x1b]8;;${safeUrl}\x07${safeText}\x1b]8;;\x07`;
 }
-export function formatTweetUrlLine(tweetId, cfg) {
+export function formatTweetUrlLine(tweetId: string, cfg: OutputConfig): string {
     const url = formatTweetUrl(tweetId);
     return `${labelPrefix('url', cfg)}${hyperlink(url, url, cfg)}`;
 }

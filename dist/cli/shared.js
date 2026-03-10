@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
@@ -52,7 +51,7 @@ function resolveQuoteDepth(...values) {
         if (value === undefined || value === null || value === '') {
             continue;
         }
-        const parsed = typeof value === 'number' ? value : Number.parseInt(value, 10);
+        const parsed = typeof value === 'number' ? value : Number.parseInt(String(value), 10);
         if (Number.isFinite(parsed) && parsed >= 0) {
             return Math.floor(parsed);
         }

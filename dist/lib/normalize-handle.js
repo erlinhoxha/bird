@@ -1,4 +1,3 @@
-// @ts-nocheck
 const HANDLE_REGEX = /^[A-Za-z0-9_]{1,15}$/;
 export function normalizeHandle(input) {
     const raw = (input ?? '').trim();

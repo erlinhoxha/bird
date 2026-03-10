@@ -1,4 +1,3 @@
-// @ts-nocheck
 export function registerHelpCommand(program, ctx) {
     program
         .command('help [command]')

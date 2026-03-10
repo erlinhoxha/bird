@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-// @ts-nocheck
 /**
  * bird - CLI tool for posting tweets and replies
  *

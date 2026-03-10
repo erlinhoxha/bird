@@ -1,8 +1,29 @@
-// @ts-nocheck
 import { TWITTER_API_BASE } from './twitter-client-constants.js';
 import { buildSearchFeatures } from './twitter-client-features.js';
-import { extractCursorFromInstructions, parseTweetsFromInstructions } from './twitter-client-utils.js';
+import {
+    extractCursorFromInstructions,
+    parseTweetsFromInstructions,
+    type ParsedTweet,
+} from './twitter-client-utils.js';
 const RAW_QUERY_MISSING_REGEX = /must be defined/i;
+interface SearchTimelineOptions {
+    cursor?: string;
+    includeRaw?: boolean;
+    maxPages?: number;
+}
+function searchTimelineError(result: SearchTimelinePageResult, fallback: string): string {
+    return 'error' in result ? result.error : fallback;
+}
+type SearchTimelinePageResult = {
+    success: true;
+    tweets: ParsedTweet[];
+    cursor?: string;
+    had404: boolean;
+} | {
+    success: false;
+    error: string;
+    had404?: boolean;
+};
 function isQueryIdMismatch(payload) {
     try {
         const parsed = JSON.parse(payload);
@@ -29,25 +50,25 @@ export function withSearch(Base) {
         /**
          * Search for tweets matching a query
          */
-        async search(query, count = 20, options = {}) {
+        async search(query, count = 20, options: SearchTimelineOptions = {}) {
             return this.searchPaged(query, count, options);
         }
         /**
          * Get all search results (paged)
          */
-        async getAllSearchResults(query, options) {
+        async getAllSearchResults(query, options: SearchTimelineOptions = {}) {
             return this.searchPaged(query, Number.POSITIVE_INFINITY, options);
         }
-        async searchPaged(query, limit, options = {}) {
+        async searchPaged(query, limit, options: SearchTimelineOptions = {}) {
             const features = buildSearchFeatures();
             const pageSize = 20;
-            const seen = new Set();
-            const tweets = [];
+            const seen = new Set<string>();
+            const tweets: ParsedTweet[] = [];
             let cursor = options.cursor;
-            let nextCursor;
+            let nextCursor: string | undefined;
             let pagesFetched = 0;
             const { includeRaw = false, maxPages } = options;
-            const fetchPage = async (pageCount, pageCursor) => {
+            const fetchPage = async (pageCount, pageCursor): Promise<SearchTimelinePageResult> => {
                 let lastError;
                 let had404 = false;
                 const queryIds = await this.getSearchTimelineQueryIds();
@@ -103,7 +124,7 @@ export function withSearch(Base) {
                 }
                 return { success: false, error: lastError ?? 'Unknown error fetching search results', had404 };
             };
-            const fetchWithRefresh = async (pageCount, pageCursor) => {
+            const fetchWithRefresh = async (pageCount, pageCursor): Promise<SearchTimelinePageResult> => {
                 const firstAttempt = await fetchPage(pageCount, pageCursor);
                 if (firstAttempt.success) {
                     return firstAttempt;
@@ -114,16 +135,16 @@ export function withSearch(Base) {
                     if (secondAttempt.success) {
                         return secondAttempt;
                     }
-                    return { success: false, error: secondAttempt.error };
+                    return { success: false, error: searchTimelineError(secondAttempt, 'Unknown error fetching search results') };
                 }
-                return { success: false, error: firstAttempt.error };
+                return { success: false, error: searchTimelineError(firstAttempt, 'Unknown error fetching search results') };
             };
             const unlimited = limit === Number.POSITIVE_INFINITY;
             while (unlimited || tweets.length < limit) {
                 const pageCount = unlimited ? pageSize : Math.min(pageSize, limit - tweets.length);
                 const page = await fetchWithRefresh(pageCount, cursor);
                 if (!page.success) {
-                    return { success: false, error: page.error };
+                    return { success: false, error: searchTimelineError(page, 'Unknown error fetching search results') };
                 }
                 pagesFetched += 1;
                 let added = 0;

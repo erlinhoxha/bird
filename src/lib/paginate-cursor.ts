@@ -1,8 +1,42 @@
-// @ts-nocheck
-export async function paginateCursor(opts) {
+export interface PaginatedFetchSuccess<T> {
+    success: true;
+    items: T[];
+    cursor?: string;
+}
+export interface PaginatedFetchFailure<T> {
+    success: false;
+    error: string;
+    items?: T[];
+    nextCursor?: string;
+}
+export type PaginatedFetchResult<T> = PaginatedFetchSuccess<T> | PaginatedFetchFailure<T>;
+export interface PaginateCursorSuccess<T> {
+    success: true;
+    items: T[];
+    nextCursor?: string;
+}
+export interface PaginateCursorFailure<T> {
+    success: false;
+    error: string;
+    items?: T[];
+    nextCursor?: string;
+}
+export type PaginateCursorResult<T> = PaginateCursorSuccess<T> | PaginateCursorFailure<T>;
+function isPaginatedFetchFailure<T>(page: PaginatedFetchResult<T>): page is PaginatedFetchFailure<T> {
+    return page.success === false;
+}
+export interface PaginateCursorOptions<T> {
+    cursor?: string;
+    maxPages?: number;
+    pageDelayMs?: number;
+    sleep(ms: number): Promise<void>;
+    fetchPage(cursor?: string): Promise<PaginatedFetchResult<T>>;
+    getKey(item: T): string;
+}
+export async function paginateCursor<T>(opts: PaginateCursorOptions<T>): Promise<PaginateCursorResult<T>> {
     const { maxPages, pageDelayMs = 1000 } = opts;
-    const seen = new Set();
-    const items = [];
+    const seen = new Set<string>();
+    const items: T[] = [];
     let cursor = opts.cursor;
     let pagesFetched = 0;
     while (true) {
@@ -10,7 +44,7 @@ export async function paginateCursor(opts) {
             await opts.sleep(pageDelayMs);
         }
         const page = await opts.fetchPage(cursor);
-        if (!page.success) {
+        if (isPaginatedFetchFailure(page)) {
             if (items.length > 0) {
                 return { success: false, error: page.error, items, nextCursor: cursor };
             }

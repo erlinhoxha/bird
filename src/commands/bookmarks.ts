@@ -1,5 +1,4 @@
-// @ts-nocheck
-import { parsePaginationFlags } from '../cli/pagination.js';
+import { isPaginationFlagsFailure, parsePaginationFlags } from '../cli/pagination.js';
 import { extractBookmarkFolderId } from '../lib/extract-bookmark-folder-id.js';
 import { addThreadMetadata, filterAuthorChain, filterAuthorOnly, filterFullChain } from '../lib/thread-filters.js';
 import { TwitterClient } from '../lib/twitter-client.js';
@@ -27,7 +26,7 @@ export function registerBookmarksCommand(program, ctx) {
         const timeoutMs = ctx.resolveTimeoutFromOptions(opts);
         const count = Number.parseInt(cmdOpts.count || '20', 10);
         const pagination = parsePaginationFlags(cmdOpts);
-        if (!pagination.ok) {
+        if (isPaginationFlagsFailure(pagination)) {
             console.error(`${ctx.p('err')}${pagination.error}`);
             process.exit(1);
         }

@@ -1,10 +1,15 @@
-// @ts-nocheck
-const sortByCreatedAt = (tweets) => tweets.slice().sort((a, b) => {
+import type { ParsedTweet } from './twitter-client-utils.js';
+
+export interface ThreadFilterOptions {
+    includeAncestorBranches?: boolean;
+}
+
+const sortByCreatedAt = (tweets: ParsedTweet[]): ParsedTweet[] => tweets.slice().sort((a, b) => {
     const aTime = a.createdAt ? Date.parse(a.createdAt) : 0;
     const bTime = b.createdAt ? Date.parse(b.createdAt) : 0;
     return aTime - bTime;
 });
-export function filterAuthorChain(tweets, bookmarkedTweet) {
+export function filterAuthorChain(tweets: ParsedTweet[], bookmarkedTweet: ParsedTweet): ParsedTweet[] {
     const author = bookmarkedTweet.author.username;
     const byId = new Map(tweets.map((tweet) => [tweet.id, tweet]));
     const chainIds = new Set();
@@ -39,13 +44,13 @@ export function filterAuthorChain(tweets, bookmarkedTweet) {
     }
     return sortByCreatedAt(tweets.filter((tweet) => chainIds.has(tweet.id)));
 }
-export function filterAuthorOnly(tweets, bookmarkedTweet) {
+export function filterAuthorOnly(tweets: ParsedTweet[], bookmarkedTweet: ParsedTweet): ParsedTweet[] {
     const author = bookmarkedTweet.author.username;
     return tweets.filter((tweet) => tweet.author.username === author);
 }
-export function filterFullChain(tweets, bookmarkedTweet, options = {}) {
+export function filterFullChain(tweets: ParsedTweet[], bookmarkedTweet: ParsedTweet, options: ThreadFilterOptions = {}): ParsedTweet[] {
     const byId = new Map(tweets.map((tweet) => [tweet.id, tweet]));
-    const repliesByParent = new Map();
+    const repliesByParent = new Map<string, ParsedTweet[]>();
     for (const tweet of tweets) {
         if (!tweet.inReplyToStatusId) {
             continue;
@@ -69,7 +74,7 @@ export function filterFullChain(tweets, bookmarkedTweet, options = {}) {
         }
         current = parent;
     }
-    const addDescendants = (startIds) => {
+    const addDescendants = (startIds: string[]) => {
         const queue = [...startIds];
         while (queue.length > 0) {
             const currentId = queue.shift();
@@ -97,7 +102,14 @@ export function filterFullChain(tweets, bookmarkedTweet, options = {}) {
     }
     return sortByCreatedAt(tweets.filter((tweet) => chainIds.has(tweet.id)));
 }
-export function addThreadMetadata(tweet, allConversationTweets) {
+export type ThreadPosition = 'standalone' | 'root' | 'middle' | 'end';
+export interface ThreadMetadata {
+    isThread: boolean;
+    threadPosition: ThreadPosition;
+    hasSelfReplies: boolean;
+    threadRootId: string | null;
+}
+export function addThreadMetadata(tweet: ParsedTweet, allConversationTweets: ParsedTweet[]): ParsedTweet & ThreadMetadata {
     const author = tweet.author.username;
     const hasSelfReplies = allConversationTweets.some((candidate) => candidate.inReplyToStatusId === tweet.id && candidate.author.username === author);
     const isRoot = !tweet.inReplyToStatusId;

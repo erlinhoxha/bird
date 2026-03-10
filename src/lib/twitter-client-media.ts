@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { TWITTER_MEDIA_METADATA_URL, TWITTER_UPLOAD_URL } from './twitter-client-constants.js';
 export function withMedia(Base) {
     class TwitterClientMedia extends Base {

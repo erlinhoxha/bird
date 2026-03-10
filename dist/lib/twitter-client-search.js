@@ -1,8 +1,10 @@
-// @ts-nocheck
 import { TWITTER_API_BASE } from './twitter-client-constants.js';
 import { buildSearchFeatures } from './twitter-client-features.js';
-import { extractCursorFromInstructions, parseTweetsFromInstructions } from './twitter-client-utils.js';
+import { extractCursorFromInstructions, parseTweetsFromInstructions, } from './twitter-client-utils.js';
 const RAW_QUERY_MISSING_REGEX = /must be defined/i;
+function searchTimelineError(result, fallback) {
+    return 'error' in result ? result.error : fallback;
+}
 function isQueryIdMismatch(payload) {
     try {
         const parsed = JSON.parse(payload);
@@ -35,7 +37,7 @@ export function withSearch(Base) {
         /**
          * Get all search results (paged)
          */
-        async getAllSearchResults(query, options) {
+        async getAllSearchResults(query, options = {}) {
             return this.searchPaged(query, Number.POSITIVE_INFINITY, options);
         }
         async searchPaged(query, limit, options = {}) {
@@ -114,16 +116,16 @@ export function withSearch(Base) {
                     if (secondAttempt.success) {
                         return secondAttempt;
                     }
-                    return { success: false, error: secondAttempt.error };
+                    return { success: false, error: searchTimelineError(secondAttempt, 'Unknown error fetching search results') };
                 }
-                return { success: false, error: firstAttempt.error };
+                return { success: false, error: searchTimelineError(firstAttempt, 'Unknown error fetching search results') };
             };
             const unlimited = limit === Number.POSITIVE_INFINITY;
             while (unlimited || tweets.length < limit) {
                 const pageCount = unlimited ? pageSize : Math.min(pageSize, limit - tweets.length);
                 const page = await fetchWithRefresh(pageCount, cursor);
                 if (!page.success) {
-                    return { success: false, error: page.error };
+                    return { success: false, error: searchTimelineError(page, 'Unknown error fetching search results') };
                 }
                 pagesFetched += 1;
                 let added = 0;

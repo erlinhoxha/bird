@@ -1,7 +1,29 @@
-// @ts-nocheck
 import { TWITTER_API_BASE } from './twitter-client-constants.js';
 import { buildUserTweetsFeatures } from './twitter-client-features.js';
-import { extractCursorFromInstructions, parseTweetsFromInstructions } from './twitter-client-utils.js';
+import {
+    extractCursorFromInstructions,
+    parseTweetsFromInstructions,
+    type ParsedTweet,
+} from './twitter-client-utils.js';
+interface UserTweetsOptions {
+    cursor?: string;
+    includeRaw?: boolean;
+    maxPages?: number;
+    pageDelayMs?: number;
+}
+function userTweetsError(result: UserTweetsPageResult, fallback: string): string {
+    return 'error' in result ? result.error : fallback;
+}
+type UserTweetsPageResult = {
+    success: true;
+    tweets: ParsedTweet[];
+    cursor?: string;
+    had404: boolean;
+} | {
+    success: false;
+    error: string;
+    had404?: boolean;
+};
 export function withUserTweets(Base) {
     class TwitterClientUserTweets extends Base {
         // biome-ignore lint/complexity/noUselessConstructor lint/suspicious/noExplicitAny: TS mixin constructor requirement.
@@ -16,28 +38,28 @@ export function withUserTweets(Base) {
         /**
          * Get tweets from a user's profile timeline (single page).
          */
-        async getUserTweets(userId, count = 20, options = {}) {
+        async getUserTweets(userId, count = 20, options: UserTweetsOptions = {}) {
             return this.getUserTweetsPaged(userId, count, options);
         }
         /**
          * Get tweets from a user's profile timeline with pagination support.
          */
-        async getUserTweetsPaged(userId, limit, options = {}) {
+        async getUserTweetsPaged(userId, limit, options: UserTweetsOptions = {}) {
             if (!Number.isFinite(limit) || limit <= 0) {
                 return { success: false, error: `Invalid limit: ${limit}` };
             }
             const { includeRaw = false, maxPages, pageDelayMs = 1000 } = options;
             const features = buildUserTweetsFeatures();
             const pageSize = 20;
-            const seen = new Set();
-            const tweets = [];
+            const seen = new Set<string>();
+            const tweets: ParsedTweet[] = [];
             let cursor = options.cursor;
-            let nextCursor;
+            let nextCursor: string | undefined;
             let pagesFetched = 0;
             const hardMaxPages = 10;
             const computedMaxPages = Math.max(1, Math.ceil(limit / pageSize));
             const effectiveMaxPages = Math.min(hardMaxPages, maxPages ?? computedMaxPages);
-            const fetchPage = async (pageCount, pageCursor) => {
+            const fetchPage = async (pageCount, pageCursor): Promise<UserTweetsPageResult> => {
                 let lastError;
                 let had404 = false;
                 const queryIds = await this.getUserTweetsQueryIds();
@@ -96,7 +118,7 @@ export function withUserTweets(Base) {
                 }
                 return { success: false, error: lastError ?? 'Unknown error fetching user tweets', had404 };
             };
-            const fetchWithRefresh = async (pageCount, pageCursor) => {
+            const fetchWithRefresh = async (pageCount, pageCursor): Promise<UserTweetsPageResult> => {
                 const firstAttempt = await fetchPage(pageCount, pageCursor);
                 if (firstAttempt.success) {
                     return firstAttempt;
@@ -107,9 +129,9 @@ export function withUserTweets(Base) {
                     if (secondAttempt.success) {
                         return secondAttempt;
                     }
-                    return { success: false, error: secondAttempt.error };
+                    return { success: false, error: userTweetsError(secondAttempt, 'Unknown error fetching user tweets') };
                 }
-                return { success: false, error: firstAttempt.error };
+                return { success: false, error: userTweetsError(firstAttempt, 'Unknown error fetching user tweets') };
             };
             while (tweets.length < limit) {
                 // Add delay between pages (but not before the first page)
@@ -120,7 +142,7 @@ export function withUserTweets(Base) {
                 const pageCount = Math.min(pageSize, remaining);
                 const page = await fetchWithRefresh(pageCount, cursor);
                 if (!page.success) {
-                    return { success: false, error: page.error };
+                    return { success: false, error: userTweetsError(page, 'Unknown error fetching user tweets') };
                 }
                 pagesFetched += 1;
                 let added = 0;

@@ -1,8 +1,5 @@
-export declare function normalizeHandle(input: any): any;
-export declare function mentionsQueryFromUserOption(userOption: any): {
-    query: any;
-    error: string;
-} | {
-    query: string;
-    error: any;
+export declare function normalizeHandle(input: string | null | undefined): string | null;
+export declare function mentionsQueryFromUserOption(userOption: string | undefined): {
+    query: string | null;
+    error: string | null;
 };

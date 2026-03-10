@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Browser cookie extraction for Twitter authentication.
  * Uses Bird's vendored browser cookie readers for Safari/Chrome/Firefox.
@@ -7,7 +6,7 @@ import { getCookies } from './vendor/sweet-cookie/public.js';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { fetchViaRequestBridge, getDefaultTwitterUserAgent, resolveTwitterUserAgent } from './twitter-request-bridge.js';
+import { fetchViaRequestBridge, getDefaultTwitterUserAgent, resolveTwitterUserAgent, } from './twitter-request-bridge.js';
 const TWITTER_URL = 'https://x.com/';
 const TWITTER_ORIGINS = ['https://x.com/', 'https://twitter.com/'];
 const DEFAULT_COOKIE_TIMEOUT_MS = 30_000;
@@ -25,11 +24,11 @@ function normalizeValue(value) {
     const trimmed = value.trim();
     return trimmed.length > 0 ? trimmed : null;
 }
-function cookieHeader(authToken, ct0) {
+function minimalCookieHeader(authToken, ct0) {
     return `auth_token=${authToken}; ct0=${ct0}`;
 }
 function cookieDomainRank(cookie) {
-    const domain = typeof cookie?.domain === 'string' ? cookie.domain : '';
+    const domain = typeof cookie.domain === 'string' ? cookie.domain : '';
     if (domain.endsWith('x.com')) {
         return 2;
     }
@@ -41,7 +40,7 @@ function cookieDomainRank(cookie) {
 function buildCookieHeaderFromCookies(cookies, authToken, ct0) {
     const bestByName = new Map();
     for (const cookie of cookies) {
-        if (!cookie?.name || typeof cookie.value !== 'string') {
+        if (!cookie.name || typeof cookie.value !== 'string') {
             continue;
         }
         const existing = bestByName.get(cookie.name);
@@ -49,13 +48,9 @@ function buildCookieHeaderFromCookies(cookies, authToken, ct0) {
             bestByName.set(cookie.name, cookie);
         }
     }
-    if (authToken) {
-        bestByName.set('auth_token', { name: 'auth_token', value: authToken, domain: 'x.com' });
-    }
-    if (ct0) {
-        bestByName.set('ct0', { name: 'ct0', value: ct0, domain: 'x.com' });
-    }
-    const orderedNames = Array.from(bestByName.keys()).sort((a, b) => {
+    bestByName.set('auth_token', { name: 'auth_token', value: authToken, domain: 'x.com' });
+    bestByName.set('ct0', { name: 'ct0', value: ct0, domain: 'x.com' });
+    const orderedNames = [...bestByName.keys()].sort((a, b) => {
         if (a === 'auth_token')
             return -1;
         if (b === 'auth_token')
@@ -69,7 +64,10 @@ function buildCookieHeaderFromCookies(cookies, authToken, ct0) {
     return orderedNames
         .map((name) => {
         const cookie = bestByName.get(name);
-        return cookie ? `${cookie.name}=${cookie.value}` : null;
+        if (!cookie?.name || typeof cookie.value !== 'string') {
+            return null;
+        }
+        return `${cookie.name}=${cookie.value}`;
     })
         .filter((value) => typeof value === 'string' && value.length > 0)
         .join('; ');
@@ -81,7 +79,7 @@ function buildCookies(authToken, ct0, source, fullCookieHeader = null) {
     return {
         authToken,
         ct0,
-        cookieHeader: fullCookieHeader || cookieHeader(authToken, ct0),
+        cookieHeader: fullCookieHeader ?? minimalCookieHeader(authToken, ct0),
         source,
     };
 }
@@ -101,19 +99,25 @@ function readEnvCookie(cookies, keys, field) {
         break;
     }
 }
+function isCachedCookiesRecord(value) {
+    if (!value || typeof value !== 'object') {
+        return false;
+    }
+    const record = value;
+    return (typeof record.savedAt === 'number' &&
+        typeof record.authToken === 'string' &&
+        typeof record.ct0 === 'string');
+}
 function loadCookieCache() {
     try {
         if (!existsSync(COOKIE_CACHE_FILE)) {
             return null;
         }
         const raw = JSON.parse(readFileSync(COOKIE_CACHE_FILE, 'utf8'));
-        if (!raw || typeof raw !== 'object') {
+        if (!isCachedCookiesRecord(raw)) {
             return null;
         }
-        if (typeof raw.savedAt !== 'number' || Date.now() - raw.savedAt > COOKIE_CACHE_TTL_MS) {
-            return null;
-        }
-        if (typeof raw.authToken !== 'string' || typeof raw.ct0 !== 'string') {
+        if (Date.now() - raw.savedAt > COOKIE_CACHE_TTL_MS) {
             return null;
         }
         return buildCookies(raw.authToken, raw.ct0, raw.source ?? 'cache', typeof raw.cookieHeader === 'string' ? raw.cookieHeader : null);
@@ -123,6 +127,9 @@ function loadCookieCache() {
     }
 }
 function saveCookieCache(cookies) {
+    if (!cookies.authToken || !cookies.ct0) {
+        return;
+    }
     try {
         mkdirSync(dirname(COOKIE_CACHE_FILE), { recursive: true });
         writeFileSync(COOKIE_CACHE_FILE, JSON.stringify({
@@ -138,10 +145,13 @@ function saveCookieCache(cookies) {
     }
 }
 async function verifyCookies(cookies, userAgent) {
+    if (!cookies.authToken || !cookies.ct0) {
+        return true;
+    }
     const resolvedUserAgent = await resolveTwitterUserAgent(userAgent);
     const headers = {
         authorization: `Bearer ${BEARER_TOKEN}`,
-        cookie: cookies.cookieHeader || cookieHeader(cookies.authToken, cookies.ct0),
+        cookie: cookies.cookieHeader ?? minimalCookieHeader(cookies.authToken, cookies.ct0),
         'x-csrf-token': cookies.ct0,
         'x-twitter-active-user': 'yes',
         'x-twitter-auth-type': 'OAuth2Session',
@@ -168,10 +178,6 @@ async function verifyCookies(cookies, userAgent) {
     }
     return true;
 }
-function chromeVersionFromUserAgent(userAgent) {
-    const match = /Chrome\/(\d+)/.exec(userAgent);
-    return match?.[1] ?? '131';
-}
 function defaultUserAgent() {
     return getDefaultTwitterUserAgent();
 }
@@ -194,15 +200,15 @@ function labelForSource(source, profile) {
     return profile ? `Firefox profile "${profile}"` : 'Firefox default profile';
 }
 function pickCookieValue(cookies, name) {
-    const matches = cookies.filter((c) => c?.name === name && typeof c.value === 'string');
+    const matches = cookies.filter((cookie) => cookie?.name === name && typeof cookie.value === 'string');
     if (matches.length === 0) {
         return null;
     }
-    const preferred = matches.find((c) => (c.domain ?? '').endsWith('x.com'));
+    const preferred = matches.find((cookie) => (cookie.domain ?? '').endsWith('x.com'));
     if (preferred?.value) {
         return preferred.value;
     }
-    const twitter = matches.find((c) => (c.domain ?? '').endsWith('twitter.com'));
+    const twitter = matches.find((cookie) => (cookie.domain ?? '').endsWith('twitter.com'));
     if (twitter?.value) {
         return twitter.value;
     }
@@ -211,15 +217,15 @@ function pickCookieValue(cookies, name) {
 async function readTwitterCookiesFromBrowser(options) {
     const warnings = [];
     const out = buildEmpty();
-    const { cookies, warnings: providerWarnings } = await getCookies({
+    const { cookies, warnings: providerWarnings } = (await getCookies({
         url: TWITTER_URL,
-        origins: TWITTER_ORIGINS,
+        origins: [...TWITTER_ORIGINS],
         browsers: [options.source],
         mode: 'merge',
         chromeProfile: options.chromeProfile,
         firefoxProfile: options.firefoxProfile,
         timeoutMs: options.cookieTimeoutMs,
-    });
+    }));
     warnings.push(...providerWarnings);
     const authToken = pickCookieValue(cookies, 'auth_token');
     const ct0 = pickCookieValue(cookies, 'ct0');
@@ -230,8 +236,9 @@ async function readTwitterCookiesFromBrowser(options) {
         out.ct0 = ct0;
     }
     if (out.authToken && out.ct0) {
-        out.cookieHeader = buildCookieHeaderFromCookies(cookies, out.authToken, out.ct0) ||
-            cookieHeader(out.authToken, out.ct0);
+        out.cookieHeader =
+            buildCookieHeaderFromCookies(cookies, out.authToken, out.ct0) ??
+                minimalCookieHeader(out.authToken, out.ct0);
         out.source = labelForSource(options.source, options.source === 'chrome' ? options.chromeProfile : options.firefoxProfile);
         return { cookies: out, warnings };
     }
@@ -282,7 +289,7 @@ export async function resolveCredentials(options) {
     readEnvCookie(cookies, ['AUTH_TOKEN', 'TWITTER_AUTH_TOKEN'], 'authToken');
     readEnvCookie(cookies, ['CT0', 'TWITTER_CT0'], 'ct0');
     if (cookies.authToken && cookies.ct0) {
-        cookies.cookieHeader = cookieHeader(cookies.authToken, cookies.ct0);
+        cookies.cookieHeader = minimalCookieHeader(cookies.authToken, cookies.ct0);
         await verifyCookies(cookies, defaultUserAgent());
         return { cookies, warnings };
     }
@@ -298,17 +305,17 @@ export async function resolveCredentials(options) {
     }
     const sourcesToTry = resolveSources(options.cookieSource);
     for (const source of sourcesToTry) {
-        const res = await readTwitterCookiesFromBrowser({
+        const result = await readTwitterCookiesFromBrowser({
             source,
             chromeProfile: options.chromeProfile,
             firefoxProfile: options.firefoxProfile,
             cookieTimeoutMs,
         });
-        warnings.push(...res.warnings);
-        if (res.cookies.authToken && res.cookies.ct0) {
-            await verifyCookies(res.cookies, defaultUserAgent());
-            saveCookieCache(res.cookies);
-            return { cookies: res.cookies, warnings };
+        warnings.push(...result.warnings);
+        if (result.cookies.authToken && result.cookies.ct0) {
+            await verifyCookies(result.cookies, defaultUserAgent());
+            saveCookieCache(result.cookies);
+            return { cookies: result.cookies, warnings };
         }
     }
     if (!cookies.authToken) {
@@ -318,9 +325,8 @@ export async function resolveCredentials(options) {
         warnings.push('Missing ct0 - provide via --ct0, CT0 env var, or login to x.com in Safari/Chrome/Firefox');
     }
     if (cookies.authToken && cookies.ct0) {
-        cookies.cookieHeader = cookieHeader(cookies.authToken, cookies.ct0);
+        cookies.cookieHeader = minimalCookieHeader(cookies.authToken, cookies.ct0);
     }
     return { cookies, warnings };
 }
-//# sourceMappingURL=cookies.js.map
 //# sourceMappingURL=cookies.js.map

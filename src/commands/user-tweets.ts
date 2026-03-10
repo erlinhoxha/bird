@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { parseNonNegativeIntFlag, parsePositiveIntFlag } from '../cli/pagination.js';
 import { normalizeHandle } from '../lib/normalize-handle.js';
 import { TwitterClient } from '../lib/twitter-client.js';
@@ -29,13 +28,13 @@ export function registerUserTweetsCommand(program, ctx) {
         const count = Number.parseInt(cmdOpts.count || '20', 10);
         const maxPagesParsed = parsePositiveIntFlag(cmdOpts.maxPages, '--max-pages');
         if (!maxPagesParsed.ok) {
-            console.error(`${ctx.p('err')}${maxPagesParsed.error}`);
+            console.error(`${ctx.p('err')}${'error' in maxPagesParsed ? maxPagesParsed.error : 'Invalid --max-pages.'}`);
             process.exit(2);
         }
         const maxPages = maxPagesParsed.value;
         const delayParsed = parseNonNegativeIntFlag(cmdOpts.delay, '--delay', 1000);
         if (!delayParsed.ok) {
-            console.error(`${ctx.p('err')}${delayParsed.error}`);
+            console.error(`${ctx.p('err')}${'error' in delayParsed ? delayParsed.error : 'Invalid --delay.'}`);
             process.exit(2);
         }
         const pageDelayMs = delayParsed.value;

@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Extract bookmark folder (collection) ID from an X/Twitter bookmarks URL.
  */

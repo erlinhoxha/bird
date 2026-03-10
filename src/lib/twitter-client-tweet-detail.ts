@@ -1,8 +1,21 @@
-// @ts-nocheck
 import { paginateCursor } from './paginate-cursor.js';
 import { TWITTER_API_BASE } from './twitter-client-constants.js';
 import { buildArticleFeatures, buildArticleFieldToggles, buildTweetDetailFeatures } from './twitter-client-features.js';
-import { extractArticleText, extractCursorFromInstructions, findTweetInInstructions, firstText, mapTweetResult, parseTweetsFromInstructions, } from './twitter-client-utils.js';
+import {
+    extractArticleText,
+    extractCursorFromInstructions,
+    findTweetInInstructions,
+    firstText,
+    mapTweetResult,
+    parseTweetsFromInstructions,
+    type ParsedTweet,
+} from './twitter-client-utils.js';
+interface TweetDetailOptions {
+    includeRaw?: boolean;
+    cursor?: string;
+    maxPages?: number;
+    pageDelayMs?: number;
+}
 export function withTweetDetails(Base) {
     class TwitterClientTweetDetails extends Base {
         // biome-ignore lint/complexity/noUselessConstructor lint/suspicious/noExplicitAny: TS mixin constructor requirement.
@@ -59,7 +72,7 @@ export function withTweetDetails(Base) {
             }
             return {};
         }
-        async fetchTweetDetail(tweetId, cursor) {
+        async fetchTweetDetail(tweetId, cursor?: string) {
             const variables = {
                 focalTweetId: tweetId,
                 with_rux_injections: false,
@@ -156,7 +169,7 @@ export function withTweetDetails(Base) {
         /**
          * Get tweet details by ID
          */
-        async getTweet(tweetId, options = {}) {
+        async getTweet(tweetId, options: TweetDetailOptions = {}) {
             const { includeRaw = false } = options;
             const response = await this.fetchTweetDetail(tweetId);
             if (!response.success) {
@@ -186,7 +199,7 @@ export function withTweetDetails(Base) {
         /**
          * Get replies to a tweet by ID
          */
-        async getReplies(tweetId, options = {}) {
+        async getReplies(tweetId, options: TweetDetailOptions = {}) {
             const { includeRaw = false } = options;
             const response = await this.fetchTweetDetail(tweetId);
             if (!response.success) {
@@ -200,7 +213,7 @@ export function withTweetDetails(Base) {
         /**
          * Get full conversation thread for a tweet ID
          */
-        async getThread(tweetId, options = {}) {
+        async getThread(tweetId, options: TweetDetailOptions = {}) {
             const { includeRaw = false } = options;
             const response = await this.fetchTweetDetail(tweetId);
             if (!response.success) {
@@ -221,9 +234,9 @@ export function withTweetDetails(Base) {
         /**
          * Get replies to a tweet with pagination support
          */
-        async getRepliesPaged(tweetId, options = {}) {
+        async getRepliesPaged(tweetId, options: TweetDetailOptions = {}) {
             const { includeRaw = false, maxPages, pageDelayMs = 1000 } = options;
-            const result = await paginateCursor({
+            const result = await paginateCursor<ParsedTweet>({
                 cursor: options.cursor,
                 maxPages,
                 pageDelayMs,
@@ -232,7 +245,7 @@ export function withTweetDetails(Base) {
                 fetchPage: async (cursor) => {
                     const response = await this.fetchTweetDetail(tweetId, cursor);
                     if (!response.success) {
-                        return response;
+                        return { success: false as const, error: response.error };
                     }
                     const instructions = response.data.threaded_conversation_with_injections_v2?.instructions;
                     const tweets = parseTweetsFromInstructions(instructions, { quoteDepth: this.quoteDepth, includeRaw });
@@ -245,17 +258,17 @@ export function withTweetDetails(Base) {
                 return { success: true, tweets: result.items, nextCursor: result.nextCursor };
             }
             if (result.items) {
-                return { success: false, tweets: result.items, nextCursor: result.nextCursor, error: result.error };
+                return { success: false, tweets: result.items, nextCursor: result.nextCursor, error: 'error' in result ? result.error : 'Unknown error fetching replies' };
             }
-            return { success: false, error: result.error };
+            return { success: false, error: 'error' in result ? result.error : 'Unknown error fetching replies' };
         }
         /**
          * Get full conversation thread with pagination support
          */
-        async getThreadPaged(tweetId, options = {}) {
+        async getThreadPaged(tweetId, options: TweetDetailOptions = {}) {
             const { includeRaw = false, maxPages, pageDelayMs = 1000 } = options;
-            let rootId;
-            const result = await paginateCursor({
+            let rootId: string | undefined;
+            const result = await paginateCursor<ParsedTweet>({
                 cursor: options.cursor,
                 maxPages,
                 pageDelayMs,
@@ -264,7 +277,7 @@ export function withTweetDetails(Base) {
                 fetchPage: async (cursor) => {
                     const response = await this.fetchTweetDetail(tweetId, cursor);
                     if (!response.success) {
-                        return response;
+                        return { success: false as const, error: response.error };
                     }
                     const instructions = response.data.threaded_conversation_with_injections_v2?.instructions;
                     const tweets = parseTweetsFromInstructions(instructions, { quoteDepth: this.quoteDepth, includeRaw });
@@ -286,9 +299,9 @@ export function withTweetDetails(Base) {
                 return { success: true, tweets: sortedTweets, nextCursor: result.nextCursor };
             }
             if (result.items) {
-                return { success: false, tweets: sortedTweets, nextCursor: result.nextCursor, error: result.error };
+                return { success: false, tweets: sortedTweets, nextCursor: result.nextCursor, error: 'error' in result ? result.error : 'Unknown error fetching thread' };
             }
-            return { success: false, error: result.error };
+            return { success: false, error: 'error' in result ? result.error : 'Unknown error fetching thread' };
         }
     }
     return TwitterClientTweetDetails;

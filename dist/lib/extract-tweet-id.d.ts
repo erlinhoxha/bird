@@ -1,1 +1,1 @@
-export declare function extractTweetId(input: any): any;
+export declare function extractTweetId(input: string): string;

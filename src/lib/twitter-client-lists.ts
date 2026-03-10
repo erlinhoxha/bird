@@ -1,9 +1,30 @@
-// @ts-nocheck
 // ABOUTME: Mixin for Twitter Lists GraphQL operations.
 // ABOUTME: Provides methods to fetch user's owned lists, memberships, and list timelines.
 import { TWITTER_API_BASE } from './twitter-client-constants.js';
 import { buildListsFeatures } from './twitter-client-features.js';
-import { extractCursorFromInstructions, parseTweetsFromInstructions } from './twitter-client-utils.js';
+import {
+    extractCursorFromInstructions,
+    parseTweetsFromInstructions,
+    type ParsedTweet,
+} from './twitter-client-utils.js';
+interface ListTimelineOptions {
+    cursor?: string;
+    includeRaw?: boolean;
+    maxPages?: number;
+}
+type ListTimelinePageResult = {
+    success: true;
+    tweets: ParsedTweet[];
+    cursor?: string;
+    had404: boolean;
+} | {
+    success: false;
+    error: string;
+    had404?: boolean;
+};
+function listTimelineError(result: ListTimelinePageResult, fallback: string): string {
+    return 'error' in result ? result.error : fallback;
+}
 function parseList(listResult) {
     if (!listResult.id_str || !listResult.name) {
         return null;
@@ -202,28 +223,28 @@ export function withLists(Base) {
         /**
          * Get tweets from a list timeline
          */
-        async getListTimeline(listId, count = 20, options = {}) {
+        async getListTimeline(listId, count = 20, options: ListTimelineOptions = {}) {
             return this.getListTimelinePaged(listId, count, options);
         }
         /**
          * Get all tweets from a list timeline (paginated)
          */
-        async getAllListTimeline(listId, options) {
+        async getAllListTimeline(listId, options: ListTimelineOptions = {}) {
             return this.getListTimelinePaged(listId, Number.POSITIVE_INFINITY, options);
         }
         /**
          * Internal paginated list timeline fetcher
          */
-        async getListTimelinePaged(listId, limit, options = {}) {
+        async getListTimelinePaged(listId, limit, options: ListTimelineOptions = {}) {
             const features = buildListsFeatures();
             const pageSize = 20;
-            const seen = new Set();
-            const tweets = [];
+            const seen = new Set<string>();
+            const tweets: ParsedTweet[] = [];
             let cursor = options.cursor;
-            let nextCursor;
+            let nextCursor: string | undefined;
             let pagesFetched = 0;
             const { includeRaw = false, maxPages } = options;
-            const fetchPage = async (pageCount, pageCursor) => {
+            const fetchPage = async (pageCount, pageCursor): Promise<ListTimelinePageResult> => {
                 let lastError;
                 let had404 = false;
                 const queryIds = await this.getListTimelineQueryIds();
@@ -267,7 +288,7 @@ export function withLists(Base) {
                 }
                 return { success: false, error: lastError ?? 'Unknown error fetching list timeline', had404 };
             };
-            const fetchWithRefresh = async (pageCount, pageCursor) => {
+            const fetchWithRefresh = async (pageCount, pageCursor): Promise<ListTimelinePageResult> => {
                 const firstAttempt = await fetchPage(pageCount, pageCursor);
                 if (firstAttempt.success) {
                     return firstAttempt;
@@ -278,16 +299,16 @@ export function withLists(Base) {
                     if (secondAttempt.success) {
                         return secondAttempt;
                     }
-                    return { success: false, error: secondAttempt.error };
+                    return { success: false, error: listTimelineError(secondAttempt, 'Unknown error fetching list timeline') };
                 }
-                return { success: false, error: firstAttempt.error };
+                return { success: false, error: listTimelineError(firstAttempt, 'Unknown error fetching list timeline') };
             };
             const unlimited = limit === Number.POSITIVE_INFINITY;
             while (unlimited || tweets.length < limit) {
                 const pageCount = unlimited ? pageSize : Math.min(pageSize, limit - tweets.length);
                 const page = await fetchWithRefresh(pageCount, cursor);
                 if (!page.success) {
-                    return { success: false, error: page.error };
+                    return { success: false, error: listTimelineError(page, 'Unknown error fetching list timeline') };
                 }
                 pagesFetched += 1;
                 let added = 0;

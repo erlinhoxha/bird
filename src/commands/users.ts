@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { normalizeHandle } from '../lib/normalize-handle.js';
 import { TwitterClient } from '../lib/twitter-client.js';
 function formatAboutProfile(profile, ctx, handle) {

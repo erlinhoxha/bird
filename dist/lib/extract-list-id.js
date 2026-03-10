@@ -1,4 +1,3 @@
-// @ts-nocheck
 // ABOUTME: Extract list ID from an X/Twitter list URL.
 // ABOUTME: Returns list ID or null if input is invalid.
 const LIST_URL_REGEX = /(?:twitter\.com|x\.com)\/i\/lists\/(\d+)/i;

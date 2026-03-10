@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { TWITTER_API_BASE } from './twitter-client-constants.js';
 export function withFollow(Base) {
     class TwitterClientFollow extends Base {

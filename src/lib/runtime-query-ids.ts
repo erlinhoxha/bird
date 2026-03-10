@@ -1,9 +1,42 @@
-// @ts-nocheck
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import path from 'node:path';
+import * as path from 'node:path';
 const DEFAULT_CACHE_FILENAME = 'query-ids-cache.json';
 const DEFAULT_TTL_MS = 24 * 60 * 60 * 1000;
+type FetchLike = typeof fetch;
+type QueryIdMap = Record<string, string>;
+interface QueryIdDiscovery {
+    pages: string[];
+    bundles: string[];
+}
+export interface RuntimeQueryIdSnapshot {
+    fetchedAt: string;
+    ttlMs: number;
+    ids: QueryIdMap;
+    discovery: QueryIdDiscovery;
+}
+export interface RuntimeQueryIdSnapshotInfo {
+    snapshot: RuntimeQueryIdSnapshot;
+    cachePath: string;
+    ageMs: number;
+    isFresh: boolean;
+}
+export interface RuntimeQueryIdStoreOptions {
+    fetchImpl?: FetchLike;
+    ttlMs?: number;
+    cachePath?: string;
+}
+interface RefreshOptions {
+    force?: boolean;
+}
+export interface RuntimeQueryIdStore {
+    cachePath: string;
+    ttlMs: number;
+    getSnapshotInfo(): Promise<RuntimeQueryIdSnapshotInfo | null>;
+    getQueryId(operationName: string): Promise<string | null>;
+    refresh(operationNames: string[], opts?: RefreshOptions): Promise<RuntimeQueryIdSnapshotInfo | null>;
+    clearMemory(): void;
+}
 const DISCOVERY_PAGES = [
     'https://x.com/?lang=en',
     'https://x.com/explore',
@@ -39,7 +72,7 @@ const HEADERS = {
     Accept: 'text/html,application/json;q=0.9,*/*;q=0.8',
     'Accept-Language': 'en-US,en;q=0.9',
 };
-async function fetchText(fetchImpl, url) {
+async function fetchText(fetchImpl: FetchLike, url: string): Promise<string> {
     const response = await fetchImpl(url, { headers: HEADERS });
     if (!response.ok) {
         const body = await response.text().catch(() => '');
@@ -47,22 +80,22 @@ async function fetchText(fetchImpl, url) {
     }
     return response.text();
 }
-function resolveDefaultCachePath() {
+function resolveDefaultCachePath(): string {
     const override = process.env.BIRD_QUERY_IDS_CACHE;
     if (override && override.trim().length > 0) {
         return path.resolve(override.trim());
     }
     return path.join(homedir(), '.config', 'bird', DEFAULT_CACHE_FILENAME);
 }
-function parseSnapshot(raw) {
+function parseSnapshot(raw: unknown): RuntimeQueryIdSnapshot | null {
     if (!raw || typeof raw !== 'object') {
         return null;
     }
-    const record = raw;
+    const record = raw as Record<string, unknown>;
     const fetchedAt = typeof record.fetchedAt === 'string' ? record.fetchedAt : null;
     const ttlMs = typeof record.ttlMs === 'number' && Number.isFinite(record.ttlMs) ? record.ttlMs : null;
     const ids = record.ids && typeof record.ids === 'object' ? record.ids : null;
-    const discovery = record.discovery && typeof record.discovery === 'object' ? record.discovery : null;
+    const discovery = record.discovery && typeof record.discovery === 'object' ? record.discovery as Record<string, unknown> : null;
     if (!fetchedAt || !ttlMs || !ids || !discovery) {
         return null;
     }
@@ -71,7 +104,7 @@ function parseSnapshot(raw) {
     if (!pages || !bundles) {
         return null;
     }
-    const normalizedIds = {};
+    const normalizedIds: QueryIdMap = {};
     for (const [key, value] of Object.entries(ids)) {
         if (typeof value === 'string' && value.trim().length > 0) {
             normalizedIds[key] = value.trim();
@@ -87,7 +120,7 @@ function parseSnapshot(raw) {
         },
     };
 }
-async function readSnapshotFromDisk(cachePath) {
+async function readSnapshotFromDisk(cachePath: string): Promise<RuntimeQueryIdSnapshot | null> {
     try {
         const raw = await readFile(cachePath, 'utf8');
         return parseSnapshot(JSON.parse(raw));
@@ -96,12 +129,12 @@ async function readSnapshotFromDisk(cachePath) {
         return null;
     }
 }
-async function writeSnapshotToDisk(cachePath, snapshot) {
+async function writeSnapshotToDisk(cachePath: string, snapshot: RuntimeQueryIdSnapshot): Promise<void> {
     await mkdir(path.dirname(cachePath), { recursive: true });
     await writeFile(cachePath, `${JSON.stringify(snapshot, null, 2)}\n`, 'utf8');
 }
-async function discoverBundles(fetchImpl) {
-    const bundles = new Set();
+async function discoverBundles(fetchImpl: FetchLike): Promise<string[]> {
+    const bundles = new Set<string>();
     for (const page of DISCOVERY_PAGES) {
         try {
             const html = await fetchText(fetchImpl, page);
@@ -119,7 +152,7 @@ async function discoverBundles(fetchImpl) {
     }
     return discovered;
 }
-function extractOperations(bundleContents, bundleLabel, targets, discovered) {
+function extractOperations(bundleContents: string, bundleLabel: string, targets: Set<string>, discovered: Map<string, { queryId: string; bundle: string; }>): void {
     for (const pattern of OPERATION_PATTERNS) {
         pattern.regex.lastIndex = 0;
         while (true) {
@@ -148,8 +181,8 @@ function extractOperations(bundleContents, bundleLabel, targets, discovered) {
         }
     }
 }
-async function fetchAndExtract(fetchImpl, bundleUrls, targets) {
-    const discovered = new Map();
+async function fetchAndExtract(fetchImpl: FetchLike, bundleUrls: string[], targets: Set<string>): Promise<Map<string, { queryId: string; bundle: string; }>> {
+    const discovered = new Map<string, { queryId: string; bundle: string; }>();
     const CONCURRENCY = 6;
     for (let i = 0; i < bundleUrls.length; i += CONCURRENCY) {
         const chunk = bundleUrls.slice(i, i + CONCURRENCY);
@@ -172,13 +205,13 @@ async function fetchAndExtract(fetchImpl, bundleUrls, targets) {
     }
     return discovered;
 }
-export function createRuntimeQueryIdStore(options = {}) {
+export function createRuntimeQueryIdStore(options: RuntimeQueryIdStoreOptions = {}): RuntimeQueryIdStore {
     const fetchImpl = options.fetchImpl ?? fetch;
     const ttlMs = options.ttlMs ?? DEFAULT_TTL_MS;
     const cachePath = options.cachePath ? path.resolve(options.cachePath) : resolveDefaultCachePath();
-    let memorySnapshot = null;
-    let loadOnce = null;
-    let refreshInFlight = null;
+    let memorySnapshot: RuntimeQueryIdSnapshot | null = null;
+    let loadOnce: Promise<RuntimeQueryIdSnapshot | null> | null = null;
+    let refreshInFlight: Promise<RuntimeQueryIdSnapshotInfo | null> | null = null;
     const loadSnapshot = async () => {
         if (memorySnapshot) {
             return memorySnapshot;
@@ -203,14 +236,14 @@ export function createRuntimeQueryIdStore(options = {}) {
         const isFresh = ageMs <= effectiveTtl;
         return { snapshot, cachePath, ageMs, isFresh };
     };
-    const getQueryId = async (operationName) => {
+    const getQueryId = async (operationName: string) => {
         const info = await getSnapshotInfo();
         if (!info) {
             return null;
         }
         return info.snapshot.ids[operationName] ?? null;
     };
-    const refresh = async (operationNames, opts = {}) => {
+    const refresh = async (operationNames: string[], opts: RefreshOptions = {}) => {
         if (refreshInFlight) {
             return refreshInFlight;
         }
@@ -225,7 +258,7 @@ export function createRuntimeQueryIdStore(options = {}) {
             if (discovered.size === 0) {
                 return current ?? null;
             }
-            const ids = {};
+            const ids: QueryIdMap = {};
             for (const name of operationNames) {
                 const entry = discovered.get(name);
                 if (entry?.queryId) {

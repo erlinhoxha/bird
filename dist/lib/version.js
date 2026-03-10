@@ -1,6 +1,5 @@
-// @ts-nocheck
-import fs from 'node:fs';
-import path from 'node:path';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 export const FALLBACK_VERSION = 'unknown';
 const REF_PREFIX_REGEX = /^ref:\s*/i;

@@ -1,5 +1,4 @@
-// @ts-nocheck
-import { parsePaginationFlags } from '../cli/pagination.js';
+import { isPaginationFlagsFailure, parsePaginationFlags } from '../cli/pagination.js';
 import { mentionsQueryFromUserOption, normalizeHandle } from '../lib/normalize-handle.js';
 import { TwitterClient } from '../lib/twitter-client.js';
 export function registerSearchCommands(program, ctx) {
@@ -19,7 +18,7 @@ export function registerSearchCommands(program, ctx) {
         const quoteDepth = ctx.resolveQuoteDepthFromOptions(opts);
         const count = Number.parseInt(cmdOpts.count || '10', 10);
         const pagination = parsePaginationFlags(cmdOpts);
-        if (!pagination.ok) {
+        if (isPaginationFlagsFailure(pagination)) {
             console.error(`${ctx.p('err')}${pagination.error}`);
             process.exit(1);
         }

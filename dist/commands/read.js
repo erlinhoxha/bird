@@ -1,5 +1,4 @@
-// @ts-nocheck
-import { parsePaginationFlags } from '../cli/pagination.js';
+import { isPaginationFlagsFailure, parsePaginationFlags } from '../cli/pagination.js';
 import { formatStatsLine } from '../lib/output.js';
 import { TwitterClient } from '../lib/twitter-client.js';
 export function registerReadCommands(program, ctx) {
@@ -55,7 +54,7 @@ export function registerReadCommands(program, ctx) {
         const quoteDepth = ctx.resolveQuoteDepthFromOptions(opts);
         const tweetId = ctx.extractTweetId(tweetIdOrUrl);
         const pagination = parsePaginationFlags(cmdOpts, { maxPagesImpliesPagination: true, includeDelay: true });
-        if (!pagination.ok) {
+        if (isPaginationFlagsFailure(pagination)) {
             console.error(`${ctx.p('err')}${pagination.error}`);
             process.exit(1);
         }
@@ -110,7 +109,7 @@ export function registerReadCommands(program, ctx) {
         const quoteDepth = ctx.resolveQuoteDepthFromOptions(opts);
         const tweetId = ctx.extractTweetId(tweetIdOrUrl);
         const pagination = parsePaginationFlags(cmdOpts, { maxPagesImpliesPagination: true, includeDelay: true });
-        if (!pagination.ok) {
+        if (isPaginationFlagsFailure(pagination)) {
             console.error(`${ctx.p('err')}${pagination.error}`);
             process.exit(1);
         }

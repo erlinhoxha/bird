@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
@@ -7,19 +6,106 @@ import kleur from 'kleur';
 import { resolveCredentials } from '../lib/cookies.js';
 import { extractTweetId } from '../lib/extract-tweet-id.js';
 import { hyperlink, labelPrefix, resolveOutputConfigFromArgv, resolveOutputConfigFromCommander, statusPrefix, } from '../lib/output.js';
-const COOKIE_SOURCES = ['safari', 'chrome', 'firefox'];
-function parseCookieSource(value) {
+import type { ParsedTweet, TweetMedia } from '../lib/twitter-client-utils.js';
+type CookieSource = 'safari' | 'chrome' | 'firefox';
+const COOKIE_SOURCES: CookieSource[] = ['safari', 'chrome', 'firefox'];
+type StatusKind = 'ok' | 'warn' | 'err' | 'info' | 'hint';
+type LabelKind = 'url' | 'date' | 'source' | 'engine' | 'credentials' | 'user' | 'userId' | 'email';
+interface OutputConfig {
+    plain: boolean;
+    emoji: boolean;
+    color: boolean;
+    hyperlinks: boolean;
+}
+interface CliColors {
+    banner(text: string): string;
+    subtitle(text: string): string;
+    section(text: string): string;
+    bullet(text: string): string;
+    command(text: string): string;
+    option(text: string): string;
+    argument(text: string): string;
+    description(text: string): string;
+    muted(text: string): string;
+    accent(text: string): string;
+}
+interface CliConfig {
+    chromeProfile?: string;
+    chromeProfileDir?: string;
+    firefoxProfile?: string;
+    cookieSource?: string | string[];
+    cookieTimeoutMs?: number | string;
+    timeoutMs?: number | string;
+    quoteDepth?: number | string;
+}
+interface MediaOptions {
+    media: string[];
+    alts: Array<string | undefined>;
+}
+interface CredentialsOptionInput {
+    [key: string]: unknown;
+    authToken?: string;
+    ct0?: string;
+    chromeProfileDir?: string;
+    chromeProfile?: string;
+    firefoxProfile?: string;
+    cookieSource?: CookieSource[];
+    cookieTimeout?: string | number;
+    timeout?: string | number;
+    quoteDepth?: string | number;
+}
+interface MediaSpec {
+    path: string;
+    mime: string;
+    buffer: Buffer;
+    alt?: string;
+}
+interface PrintableTweet extends ParsedTweet {
+    media?: TweetMedia[];
+    quotedTweet?: PrintableTweet;
+}
+interface PrintTweetsOptions {
+    json?: boolean;
+    emptyMessage?: string;
+    showSeparator?: boolean;
+}
+interface PrintTweetsResultOptions {
+    json?: boolean;
+    usePagination?: boolean;
+    emptyMessage?: string;
+}
+interface TweetsResult {
+    tweets?: PrintableTweet[];
+    nextCursor?: string | null;
+}
+export interface CliContext {
+    isTty: boolean;
+    getOutput(): OutputConfig;
+    colors: CliColors;
+    p(kind: StatusKind): string;
+    l(kind: LabelKind): string;
+    config: CliConfig;
+    applyOutputFromCommand(command: { optsWithGlobals(): Record<string, unknown> }): void;
+    resolveTimeoutFromOptions(options: Record<string, unknown>): number | undefined;
+    resolveQuoteDepthFromOptions(options: Record<string, unknown>): number | undefined;
+    resolveCredentialsFromOptions(opts: Record<string, unknown>): ReturnType<typeof resolveCredentials>;
+    loadMedia(opts: MediaOptions): MediaSpec[];
+    printTweets(tweets: PrintableTweet[], opts?: PrintTweetsOptions): void;
+    printTweetsResult(result: TweetsResult, opts: PrintTweetsResultOptions): void;
+    extractTweetId: typeof extractTweetId;
+}
+function parseCookieSource(value: string): CookieSource {
     const normalized = value.trim().toLowerCase();
     if (normalized === 'safari' || normalized === 'chrome' || normalized === 'firefox') {
         return normalized;
     }
     throw new Error(`Invalid --cookie-source "${value}". Allowed: safari, chrome, firefox.`);
 }
-export const collectCookieSource = (value, previous = []) => {
+export const collectCookieSource = (value: string, previous: CookieSource[] = []): CookieSource[] => {
     previous.push(parseCookieSource(value));
     return previous;
 };
-function resolveCookieSourceOrder(input) {
+function resolveCookieSourceOrder(input: unknown): CookieSource[] | undefined {
     if (typeof input === 'string') {
         return [parseCookieSource(input)];
     }
@@ -35,7 +121,7 @@ function resolveCookieSourceOrder(input) {
     }
     return undefined;
 }
-function resolveTimeoutMs(...values) {
+function resolveTimeoutMs(...values: unknown[]): number | undefined {
     for (const value of values) {
         if (value === undefined || value === null || value === '') {
             continue;
@@ -47,19 +133,19 @@ function resolveTimeoutMs(...values) {
     }
     return undefined;
 }
-function resolveQuoteDepth(...values) {
+function resolveQuoteDepth(...values: unknown[]): number | undefined {
     for (const value of values) {
         if (value === undefined || value === null || value === '') {
             continue;
         }
-        const parsed = typeof value === 'number' ? value : Number.parseInt(value, 10);
+        const parsed = typeof value === 'number' ? value : Number.parseInt(String(value), 10);
         if (Number.isFinite(parsed) && parsed >= 0) {
             return Math.floor(parsed);
         }
     }
     return undefined;
 }
-function detectMime(path) {
+function detectMime(path: string): string | null {
     const ext = path.toLowerCase();
     if (ext.endsWith('.jpg') || ext.endsWith('.jpeg')) {
         return 'image/jpeg';
@@ -81,7 +167,7 @@ function detectMime(path) {
     }
     return null;
 }
-function readConfigFile(path, warn) {
+function readConfigFile(path: string, warn: (message: string) => void): CliConfig {
     if (!existsSync(path)) {
         return {};
     }
@@ -95,7 +181,7 @@ function readConfigFile(path, warn) {
         return {};
     }
 }
-function loadConfig(warn) {
+function loadConfig(warn: (message: string) => void): CliConfig {
     const globalPath = join(homedir(), '.config', 'bird', 'config.json5');
     const localPath = join(process.cwd(), '.birdrc.json5');
     return {
@@ -103,12 +189,12 @@ function loadConfig(warn) {
         ...readConfigFile(localPath, warn),
     };
 }
-export function createCliContext(normalizedArgs, env = process.env) {
+export function createCliContext(normalizedArgs: string[], env: NodeJS.ProcessEnv = process.env): CliContext {
     const isTty = process.stdout.isTTY;
     let output = resolveOutputConfigFromArgv(normalizedArgs, env, isTty);
     kleur.enabled = output.color;
-    const wrap = (styler) => (text) => isTty ? styler(text) : text;
-    const colors = {
+    const wrap = (styler: (text: string) => string) => (text: string) => isTty ? styler(text) : text;
+    const colors: CliColors = {
         banner: wrap((t) => kleur.bold().blue(t)),
         subtitle: wrap((t) => kleur.dim(t)),
         section: wrap((t) => kleur.bold().white(t)),
@@ -120,7 +206,7 @@ export function createCliContext(normalizedArgs, env = process.env) {
         muted: wrap((t) => kleur.gray(t)),
         accent: wrap((t) => kleur.green(t)),
     };
-    const p = (kind) => {
+    const p = (kind: StatusKind) => {
         const prefix = statusPrefix(kind, output);
         if (output.plain || !output.color) {
             return prefix;
@@ -139,7 +225,7 @@ export function createCliContext(normalizedArgs, env = process.env) {
         }
         return kleur.gray(prefix);
     };
-    const l = (kind) => {
+    const l = (kind: LabelKind) => {
         const prefix = labelPrefix(kind, output);
         if (output.plain || !output.color) {
             return prefix;
@@ -173,21 +259,21 @@ export function createCliContext(normalizedArgs, env = process.env) {
     const config = loadConfig((message) => {
         console.error(colors.muted(`${p('warn')}${message}`));
     });
-    function applyOutputFromCommand(command) {
+    function applyOutputFromCommand(command: { optsWithGlobals(): Record<string, unknown> }) {
         const opts = command.optsWithGlobals();
         output = resolveOutputConfigFromCommander(opts, env, isTty);
         kleur.enabled = output.color;
     }
-    function resolveTimeoutFromOptions(options) {
+    function resolveTimeoutFromOptions(options: Record<string, unknown>) {
         return resolveTimeoutMs(options.timeout, config.timeoutMs, env.BIRD_TIMEOUT_MS);
     }
-    function resolveCookieTimeoutFromOptions(options) {
+    function resolveCookieTimeoutFromOptions(options: Record<string, unknown>) {
         return resolveTimeoutMs(options.cookieTimeout, config.cookieTimeoutMs, env.BIRD_COOKIE_TIMEOUT_MS);
     }
-    function resolveQuoteDepthFromOptions(options) {
+    function resolveQuoteDepthFromOptions(options: Record<string, unknown>) {
         return resolveQuoteDepth(options.quoteDepth, config.quoteDepth, env.BIRD_QUOTE_DEPTH);
     }
-    function resolveCredentialsFromOptions(opts) {
+    function resolveCredentialsFromOptions(opts: CredentialsOptionInput) {
         const cookieSource = opts.cookieSource?.length
             ? opts.cookieSource
             : (resolveCookieSourceOrder(config.cookieSource) ?? COOKIE_SOURCES);
@@ -201,11 +287,11 @@ export function createCliContext(normalizedArgs, env = process.env) {
             cookieTimeoutMs: resolveCookieTimeoutFromOptions(opts),
         });
     }
-    function loadMedia(opts) {
+    function loadMedia(opts: MediaOptions): MediaSpec[] {
         if (opts.media.length === 0) {
             return [];
         }
-        const specs = [];
+        const specs: MediaSpec[] = [];
         for (const [index, path] of opts.media.entries()) {
             const mime = detectMime(path);
             if (!mime) {
@@ -226,7 +312,7 @@ export function createCliContext(normalizedArgs, env = process.env) {
         }
         return specs;
     }
-    function printTweets(tweets, opts = {}) {
+    function printTweets(tweets: PrintableTweet[], opts: PrintTweetsOptions = {}) {
         if (opts.json) {
             console.log(JSON.stringify(tweets, null, 2));
             return;
@@ -237,7 +323,7 @@ export function createCliContext(normalizedArgs, env = process.env) {
         }
         const useEmoji = output.emoji && !output.plain;
         const articleLabel = useEmoji ? '📰' : 'Article:';
-        const mediaLabel = (type) => {
+        const mediaLabel = (type: TweetMedia['type']) => {
             if (useEmoji) {
                 return type === 'video' ? '🎬' : type === 'animated_gif' ? '🔄' : '🖼️';
             }
@@ -300,7 +386,7 @@ export function createCliContext(normalizedArgs, env = process.env) {
             }
         }
     }
-    function printTweetsResult(result, opts) {
+    function printTweetsResult(result: TweetsResult, opts: PrintTweetsResultOptions) {
         const tweets = result.tweets ?? [];
         if (opts.json && opts.usePagination) {
             console.log(JSON.stringify({ tweets, nextCursor: result.nextCursor ?? null }, null, 2));

@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { paginateCursor } from './paginate-cursor.js';
 import { TWITTER_API_BASE } from './twitter-client-constants.js';
 import { buildArticleFeatures, buildArticleFieldToggles, buildTweetDetailFeatures } from './twitter-client-features.js';
@@ -232,7 +231,7 @@ export function withTweetDetails(Base) {
                 fetchPage: async (cursor) => {
                     const response = await this.fetchTweetDetail(tweetId, cursor);
                     if (!response.success) {
-                        return response;
+                        return { success: false, error: response.error };
                     }
                     const instructions = response.data.threaded_conversation_with_injections_v2?.instructions;
                     const tweets = parseTweetsFromInstructions(instructions, { quoteDepth: this.quoteDepth, includeRaw });
@@ -245,9 +244,9 @@ export function withTweetDetails(Base) {
                 return { success: true, tweets: result.items, nextCursor: result.nextCursor };
             }
             if (result.items) {
-                return { success: false, tweets: result.items, nextCursor: result.nextCursor, error: result.error };
+                return { success: false, tweets: result.items, nextCursor: result.nextCursor, error: 'error' in result ? result.error : 'Unknown error fetching replies' };
             }
-            return { success: false, error: result.error };
+            return { success: false, error: 'error' in result ? result.error : 'Unknown error fetching replies' };
         }
         /**
          * Get full conversation thread with pagination support
@@ -264,7 +263,7 @@ export function withTweetDetails(Base) {
                 fetchPage: async (cursor) => {
                     const response = await this.fetchTweetDetail(tweetId, cursor);
                     if (!response.success) {
-                        return response;
+                        return { success: false, error: response.error };
                     }
                     const instructions = response.data.threaded_conversation_with_injections_v2?.instructions;
                     const tweets = parseTweetsFromInstructions(instructions, { quoteDepth: this.quoteDepth, includeRaw });
@@ -286,9 +285,9 @@ export function withTweetDetails(Base) {
                 return { success: true, tweets: sortedTweets, nextCursor: result.nextCursor };
             }
             if (result.items) {
-                return { success: false, tweets: sortedTweets, nextCursor: result.nextCursor, error: result.error };
+                return { success: false, tweets: sortedTweets, nextCursor: result.nextCursor, error: 'error' in result ? result.error : 'Unknown error fetching thread' };
             }
-            return { success: false, error: result.error };
+            return { success: false, error: 'error' in result ? result.error : 'Unknown error fetching thread' };
         }
     }
     return TwitterClientTweetDetails;

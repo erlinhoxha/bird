@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { formatTweetUrlLine } from '../lib/output.js';
 import { TwitterClient } from '../lib/twitter-client.js';
 async function uploadMediaOrExit(client, media, ctx) {

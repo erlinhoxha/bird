@@ -1,4 +1,12 @@
-// @ts-nocheck
+function isPositiveIntParseFailure(result) {
+    return result.ok === false;
+}
+function isNonNegativeIntParseFailure(result) {
+    return result.ok === false;
+}
+export function isPaginationFlagsFailure(result) {
+    return result.ok === false;
+}
 export function parsePositiveIntFlag(raw, flagName) {
     if (raw === undefined) {
         return { ok: true, value: undefined };
@@ -16,20 +24,20 @@ export function parseNonNegativeIntFlag(raw, flagName, defaultValue) {
     }
     return { ok: true, value };
 }
-export function parsePaginationFlags(cmdOpts, opts) {
+export function parsePaginationFlags(cmdOpts, opts = {}) {
     const maxPagesImpliesPagination = opts?.maxPagesImpliesPagination ?? false;
     const includeDelay = opts?.includeDelay ?? false;
     const defaultDelayMs = opts?.defaultDelayMs ?? 1000;
     const maxPages = parsePositiveIntFlag(cmdOpts.maxPages, '--max-pages');
-    if (!maxPages.ok) {
-        return maxPages;
+    if (isPositiveIntParseFailure(maxPages)) {
+        return { ok: false, error: maxPages.error };
     }
     const usePagination = Boolean(cmdOpts.all || cmdOpts.cursor || (maxPagesImpliesPagination && maxPages.value !== undefined));
     let pageDelayMs;
     if (includeDelay) {
         const delay = parseNonNegativeIntFlag(cmdOpts.delay, '--delay', defaultDelayMs);
-        if (!delay.ok) {
-            return delay;
+        if (isNonNegativeIntParseFailure(delay)) {
+            return { ok: false, error: delay.error };
         }
         pageDelayMs = delay.value;
     }

@@ -1,5 +1,9 @@
-// @ts-nocheck
 import { TwitterClient } from '../lib/twitter-client.js';
+interface PrintNewsItemsOptions {
+    json?: boolean;
+    emptyMessage?: string;
+    tweetLimit?: number;
+}
 function formatPostCount(count) {
     if (count >= 1_000_000) {
         return `${(count / 1_000_000).toFixed(1)}M`;
@@ -9,7 +13,7 @@ function formatPostCount(count) {
     }
     return String(count);
 }
-function printNewsItems(items, ctx, opts = {}) {
+function printNewsItems(items, ctx, opts: PrintNewsItemsOptions = {}) {
     if (opts.json) {
         console.log(JSON.stringify(items, null, 2));
         return;

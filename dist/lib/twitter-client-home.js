@@ -1,8 +1,10 @@
-// @ts-nocheck
 import { TWITTER_API_BASE } from './twitter-client-constants.js';
 import { buildHomeTimelineFeatures } from './twitter-client-features.js';
-import { extractCursorFromInstructions, parseTweetsFromInstructions } from './twitter-client-utils.js';
+import { extractCursorFromInstructions, parseTweetsFromInstructions, } from './twitter-client-utils.js';
 const QUERY_UNSPECIFIED_REGEX = /query:\s*unspecified/i;
+function homeTimelineError(result, fallback) {
+    return 'error' in result ? result.error : fallback;
+}
 function isQueryIdMismatch(errors) {
     return errors.some((error) => QUERY_UNSPECIFIED_REGEX.test(error.message ?? ''));
 }
@@ -104,15 +106,15 @@ export function withHome(Base) {
                     if (secondAttempt.success) {
                         return secondAttempt;
                     }
-                    return { success: false, error: secondAttempt.error };
+                    return { success: false, error: homeTimelineError(secondAttempt, 'Unknown error fetching home timeline') };
                 }
-                return { success: false, error: firstAttempt.error };
+                return { success: false, error: homeTimelineError(firstAttempt, 'Unknown error fetching home timeline') };
             };
             while (tweets.length < count) {
                 const pageCount = Math.min(pageSize, count - tweets.length);
                 const page = await fetchWithRefresh(pageCount, cursor);
                 if (!page.success) {
-                    return { success: false, error: page.error };
+                    return { success: false, error: homeTimelineError(page, 'Unknown error fetching home timeline') };
                 }
                 let added = 0;
                 for (const tweet of page.tweets) {

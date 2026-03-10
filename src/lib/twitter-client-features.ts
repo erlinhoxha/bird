@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { applyFeatureOverrides } from './runtime-features.js';
 export function buildArticleFeatures() {
     return applyFeatureOverrides('article', {

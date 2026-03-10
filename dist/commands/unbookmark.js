@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { TwitterClient } from '../lib/twitter-client.js';
 export function registerUnbookmarkCommand(program, ctx) {
     program

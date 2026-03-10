@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { TwitterClient } from '../lib/twitter-client.js';
 function formatPostCount(count) {
     if (count >= 1_000_000) {

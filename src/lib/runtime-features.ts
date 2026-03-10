@@ -1,17 +1,30 @@
-// @ts-nocheck
 import { existsSync, readFileSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import path from 'node:path';
+import * as path from 'node:path';
 // biome-ignore lint/correctness/useImportExtensions: JSON module import doesn't use .js extension.
 import defaultOverrides from './features.json' with { type: 'json' };
 const DEFAULT_CACHE_FILENAME = 'features.json';
-let cachedOverrides = null;
-function normalizeFeatureMap(value) {
+
+export type FeatureMap = Record<string, boolean>;
+export interface FeatureOverrides {
+    global: FeatureMap;
+    sets: Record<string, FeatureMap>;
+}
+export interface FeatureOverrideSnapshot {
+    cachePath: string;
+    overrides: Partial<FeatureOverrides>;
+}
+
+let cachedOverrides: FeatureOverrides | null = null;
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+function normalizeFeatureMap(value: unknown): FeatureMap {
     if (!value || typeof value !== 'object' || Array.isArray(value)) {
         return {};
     }
-    const result = {};
+    const result: FeatureMap = {};
     for (const [key, entry] of Object.entries(value)) {
         if (typeof entry === 'boolean') {
             result[key] = entry;
@@ -19,13 +32,13 @@ function normalizeFeatureMap(value) {
     }
     return result;
 }
-function normalizeOverrides(value) {
+function normalizeOverrides(value: unknown): FeatureOverrides {
     if (!value || typeof value !== 'object' || Array.isArray(value)) {
         return { global: {}, sets: {} };
     }
-    const record = value;
+    const record = value as Record<string, unknown>;
     const global = normalizeFeatureMap(record.global);
-    const sets = {};
+    const sets: Record<string, FeatureMap> = {};
     const rawSets = record.sets && typeof record.sets === 'object' && !Array.isArray(record.sets)
         ? record.sets
         : {};
@@ -37,7 +50,7 @@ function normalizeOverrides(value) {
     }
     return { global, sets };
 }
-function mergeOverrides(base, next) {
+function mergeOverrides(base: FeatureOverrides, next: FeatureOverrides): FeatureOverrides {
     const sets = { ...base.sets };
     for (const [setName, overrides] of Object.entries(next.sets)) {
         const existing = sets[setName];
@@ -48,8 +61,8 @@ function mergeOverrides(base, next) {
         sets,
     };
 }
-function toFeatureOverrides(overrides) {
-    const result = {};
+function toFeatureOverrides(overrides: FeatureOverrides): Partial<FeatureOverrides> {
+    const result: Partial<FeatureOverrides> = {};
     if (Object.keys(overrides.global).length > 0) {
         result.global = overrides.global;
     }
@@ -59,14 +72,14 @@ function toFeatureOverrides(overrides) {
     }
     return result;
 }
-function resolveFeaturesCachePath() {
+function resolveFeaturesCachePath(): string {
     const override = process.env.BIRD_FEATURES_CACHE ?? process.env.BIRD_FEATURES_PATH;
     if (override && override.trim().length > 0) {
         return path.resolve(override.trim());
     }
     return path.join(homedir(), '.config', 'bird', DEFAULT_CACHE_FILENAME);
 }
-function readOverridesFromFile(cachePath) {
+function readOverridesFromFile(cachePath: string): FeatureOverrides | null {
     if (!existsSync(cachePath)) {
         return null;
     }
@@ -78,7 +91,7 @@ function readOverridesFromFile(cachePath) {
         return null;
     }
 }
-function readOverridesFromEnv() {
+function readOverridesFromEnv(): FeatureOverrides | null {
     const raw = process.env.BIRD_FEATURES_JSON;
     if (!raw || raw.trim().length === 0) {
         return null;
@@ -90,11 +103,11 @@ function readOverridesFromEnv() {
         return null;
     }
 }
-function writeOverridesToDisk(cachePath, overrides) {
+function writeOverridesToDisk(cachePath: string, overrides: FeatureOverrides): Promise<void> {
     const payload = toFeatureOverrides(overrides);
     return mkdir(path.dirname(cachePath), { recursive: true }).then(() => writeFile(cachePath, `${JSON.stringify(payload, null, 2)}\n`, 'utf8'));
 }
-export function loadFeatureOverrides() {
+export function loadFeatureOverrides(): FeatureOverrides {
     if (cachedOverrides) {
         return cachedOverrides;
     }
@@ -111,14 +124,14 @@ export function loadFeatureOverrides() {
     cachedOverrides = merged;
     return merged;
 }
-export function getFeatureOverridesSnapshot() {
+export function getFeatureOverridesSnapshot(): FeatureOverrideSnapshot {
     const overrides = toFeatureOverrides(loadFeatureOverrides());
     return {
         cachePath: resolveFeaturesCachePath(),
         overrides,
     };
 }
-export function applyFeatureOverrides(setName, base) {
+export function applyFeatureOverrides<T extends FeatureMap>(setName: string, base: T): T {
     const overrides = loadFeatureOverrides();
     const globalOverrides = overrides.global;
     const setOverrides = overrides.sets[setName];
@@ -130,14 +143,14 @@ export function applyFeatureOverrides(setName, base) {
             ...base,
             ...globalOverrides,
             ...setOverrides,
-        };
+        } as T;
     }
     return {
         ...base,
         ...globalOverrides,
-    };
+    } as T;
 }
-export async function refreshFeatureOverridesCache() {
+export async function refreshFeatureOverridesCache(): Promise<FeatureOverrideSnapshot> {
     const cachePath = resolveFeaturesCachePath();
     const base = normalizeOverrides(defaultOverrides);
     const fromFile = readOverridesFromFile(cachePath);

@@ -1,4 +1,6 @@
-// @ts-nocheck
+function isPaginatedFetchFailure(page) {
+    return page.success === false;
+}
 export async function paginateCursor(opts) {
     const { maxPages, pageDelayMs = 1000 } = opts;
     const seen = new Set();
@@ -10,7 +12,7 @@ export async function paginateCursor(opts) {
             await opts.sleep(pageDelayMs);
         }
         const page = await opts.fetchPage(cursor);
-        if (!page.success) {
+        if (isPaginatedFetchFailure(page)) {
             if (items.length > 0) {
                 return { success: false, error: page.error, items, nextCursor: cursor };
             }

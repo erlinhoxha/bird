@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { TWITTER_API_BASE, TWITTER_GRAPHQL_POST_URL } from './twitter-client-constants.js';
 export function withBookmarks(Base) {
     class TwitterClientBookmarks extends Base {
