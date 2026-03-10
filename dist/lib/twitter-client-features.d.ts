@@ -1,0 +1,20 @@
+export declare function buildArticleFeatures(): any;
+export declare function buildTweetDetailFeatures(): any;
+export declare function buildArticleFieldToggles(): {
+    withPayments: boolean;
+    withAuxiliaryUserLabels: boolean;
+    withArticleRichContentState: boolean;
+    withArticlePlainText: boolean;
+    withGrokAnalyze: boolean;
+    withDisallowedReplyControls: boolean;
+};
+export declare function buildSearchFeatures(): any;
+export declare function buildTweetCreateFeatures(): any;
+export declare function buildTimelineFeatures(): any;
+export declare function buildBookmarksFeatures(): any;
+export declare function buildLikesFeatures(): any;
+export declare function buildListsFeatures(): any;
+export declare function buildHomeTimelineFeatures(): any;
+export declare function buildUserTweetsFeatures(): any;
+export declare function buildFollowingFeatures(): any;
+export declare function buildExploreFeatures(): any;
