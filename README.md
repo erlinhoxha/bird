@@ -2,12 +2,27 @@
 
 `bird` is a fast X CLI for tweeting, replying, and reading via X/Twitter GraphQL (cookie auth).
 
+Repository: `bird-js`  
+CLI command: `bird`  
+Current npm package: `@erlinhoxha/bird`
+
+## Highlights
+
+- Read X timelines, threads, replies, lists, bookmarks, likes, mentions, followers, and following
+- Post tweets and replies, including media uploads
+- Reuse your existing browser session via Safari, Chrome, or Firefox cookies
+- Handle rotating GraphQL query IDs at runtime
+- Expose the same functionality through a Node library API
+- Include browser-like request behavior for better parity with the X web client
+
 ## Disclaimer
 
 This project uses X/Twitter’s **undocumented** web GraphQL API (and cookie auth). X can change endpoints, query IDs,
 and anti-bot behavior at any time — **expect this to break without notice**.
 
 ## Install
+
+Install from npm:
 
 ```bash
 npm install -g @erlinhoxha/bird
@@ -20,10 +35,14 @@ bun add -g @erlinhoxha/bird
 bunx @erlinhoxha/bird whoami
 ```
 
-Homebrew (macOS, prebuilt Bun binary):
+Run from source:
 
 ```bash
-brew install erlinhoxha/tap/bird
+git clone https://github.com/fightingentropy/bird-js.git
+cd bird-js
+pnpm install
+pnpm run build:dist
+node dist/cli.js whoami
 ```
 
 ## Quickstart
@@ -125,7 +144,7 @@ By default, the command fetches from For You, News, Sports, and Entertainment ta
 
 ## Library
 
-`bird` can be used as a library (same GraphQL client as the CLI):
+`bird` can be used as a library too. The package name is still `@erlinhoxha/bird`:
 
 ```ts
 import { TwitterClient, resolveCredentials } from '@erlinhoxha/bird';
@@ -367,7 +386,8 @@ bird tweet "hi" --media img.png --alt "desc"
 ## Development
 
 ```bash
-cd ~/Projects/bird
+git clone https://github.com/fightingentropy/bird-js.git
+cd bird-js
 pnpm install
 pnpm run build       # dist/ + bun binary
 pnpm run build:dist  # dist/ only
