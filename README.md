@@ -4,7 +4,7 @@
 
 Repository: `bird`  
 CLI command: `bird`  
-Current npm package: `@erlinhoxha/bird`
+Package name: `@erlinhoxha/bird`
 
 ## Highlights
 
@@ -22,17 +22,14 @@ and anti-bot behavior at any time — **expect this to break without notice**.
 
 ## Install
 
-Install from npm:
+Install directly from GitHub:
 
 ```bash
-npm install -g @erlinhoxha/bird
+npm install -g https://codeload.github.com/fightingentropy/bird/tar.gz/main
 # or
-pnpm add -g @erlinhoxha/bird
+pnpm add -g https://codeload.github.com/fightingentropy/bird/tar.gz/main
 # or
-bun add -g @erlinhoxha/bird
-
-# one-shot (no install)
-bunx @erlinhoxha/bird whoami
+bun add -g https://codeload.github.com/fightingentropy/bird/tar.gz/main
 ```
 
 Run from source:
