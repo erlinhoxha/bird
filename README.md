@@ -22,20 +22,20 @@ and anti-bot behavior at any time — **expect this to break without notice**.
 
 ## Install
 
-Install directly from GitHub:
+Install from npm:
 
 ```bash
-npm install -g https://codeload.github.com/fightingentropy/bird/tar.gz/main
+npm install -g @erlinhoxha/bird
 # or
-pnpm add -g https://codeload.github.com/fightingentropy/bird/tar.gz/main
+pnpm add -g @erlinhoxha/bird
 # or
-bun add -g https://codeload.github.com/fightingentropy/bird/tar.gz/main
+bun add -g @erlinhoxha/bird
 ```
 
 Run from source:
 
 ```bash
-git clone https://github.com/fightingentropy/bird.git
+git clone https://github.com/erlinhoxha/bird.git
 cd bird
 pnpm install
 pnpm run build:dist
@@ -383,7 +383,7 @@ bird tweet "hi" --media img.png --alt "desc"
 ## Development
 
 ```bash
-git clone https://github.com/fightingentropy/bird.git
+git clone https://github.com/erlinhoxha/bird.git
 cd bird
 pnpm install
 pnpm run build       # dist/ + bun binary
