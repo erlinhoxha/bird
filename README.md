@@ -2,7 +2,7 @@
 
 `bird` is a fast X CLI for tweeting, replying, and reading via X/Twitter GraphQL (cookie auth).
 
-Repository: `bird-js`  
+Repository: `bird`  
 CLI command: `bird`  
 Current npm package: `@erlinhoxha/bird`
 
@@ -38,8 +38,8 @@ bunx @erlinhoxha/bird whoami
 Run from source:
 
 ```bash
-git clone https://github.com/fightingentropy/bird-js.git
-cd bird-js
+git clone https://github.com/fightingentropy/bird.git
+cd bird
 pnpm install
 pnpm run build:dist
 node dist/cli.js whoami
@@ -386,8 +386,8 @@ bird tweet "hi" --media img.png --alt "desc"
 ## Development
 
 ```bash
-git clone https://github.com/fightingentropy/bird-js.git
-cd bird-js
+git clone https://github.com/fightingentropy/bird.git
+cd bird
 pnpm install
 pnpm run build       # dist/ + bun binary
 pnpm run build:dist  # dist/ only
