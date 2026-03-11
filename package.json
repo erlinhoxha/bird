@@ -1,6 +1,6 @@
 {
   "name": "@erlinhoxha/bird",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "description": "CLI tool for tweeting and replying via Twitter/X GraphQL API",
   "author": "Erlin Hoxha",
   "type": "module",
